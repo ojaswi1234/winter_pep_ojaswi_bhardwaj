@@ -1,0 +1,78 @@
+  h1{
+        font-family: 'Times New Roman', Times, serif;
+        text-align: center;
+    }
+    body{
+        padding: 20px;
+        background-color: black;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 20px;
+    }
+    nav {
+        text-align: center;
+        font-size: 18px;
+        margin-bottom: 10px;
+        font-family: 'Consolas','Courier New', Courier, monospace;
+        font-weight: bold;
+    }
+    main{
+       
+        background-color: white;
+        padding: 72px;
+        border-radius: 10px;
+        margin: auto;
+        font-family: 'Consolas','Courier New', Courier, monospace;
+        font-size: 18px;
+    }
+    li{
+        list-style-type: "* ";
+    }
+    form{
+        width: 600px;
+        background-color: white;
+        border-radius: 10px;
+        display: flex;
+        flex-direction: column;    
+        padding: 32px;
+    }
+    label{
+        font-size: 20px;
+        margin: 0 20px 0 20px;
+    }
+    input[type="text"], input[type="email"], input[type="tel"]{
+        height: 40px;
+        margin: 20px;
+        border-radius: 5px;
+        border: 1px solid gray;
+        padding: 0 10px;
+        font-size: 16px;
+        outline: none;
+    }
+   
+    input[type="submit"]{
+        height: 40px;
+        margin: 20px;
+        border-radius: 5px;
+        border: none;
+        background-color: black;
+        color: white;
+        font-size: 16px;
+        cursor: pointer;
+    }
+    textarea{
+        margin: 20px;
+        height: 100px;
+        border-radius: 5px;
+        border: 1px solid gray;
+        padding: 10px;
+        font-size: 16px;
+        outline: none;
+    }
+    a{
+        color: black;
+        text-decoration: none;
+        cursor: pointer;
+    }
+    
