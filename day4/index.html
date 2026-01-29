@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BMI Calculator</title>
+</head>
+<style>
+    body{
+        width: 100%;
+        height: 100vh;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+    }
+    form{
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
+</style>
+<body>
+
+    <div id ="outer-border">
+        <form>
+            <h1>BMI Calculator </h1>
+            <label>Weight (in kg)</label>
+            <input type="number" id="weight" />
+            <label>Height (in cm)</label>
+            <select id="height">
+                <option value="155">155</option>
+                <option value="160">160</option>
+                <option value="165">165</option>
+                <option value="170">170</option>
+                <option value="175">175</option>
+            </select>
+            <input type="submit" value="Calculate" />
+
+        </form>
+        
+    </div>
+    <script>
+        const form = document.querySelector('form');
+        
+
+        form.addEventListener('submit', function(event) {
+            event.preventDefault();
+            const weight = document.getElementById('weight').value;
+            const height = document.getElementById('height').value;
+
+            const h2 = document.createElement('h2');
+            const p = document.createElement('p');
+            
+            const bmi = Math.floor(weight / ((height/100) * (height/100)));
+
+            
+            h2.textContent= `Your BMI is : ${bmi} kg/m²`;
+
+
+            p.textContent = weight > 65 ? `overweight!!! by ${Math.floor(weight) - 65} kg ,      get away BOB!!` : "nice bmi";
+            p.style.color = weight > 65 ? "red" : "green";
+            form.append(h2);
+            form.append(p);
+        });
+    </script>
+    
+</body>
+</html>

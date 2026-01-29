@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ToDo Web App</title>
+</head>
+<style>
+    body{
+        width: 100vw;
+        height: 100vh;
+        font-family: 'Consolas';
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        overflow: hidden;
+    }
+    form, fieldset{
+        width: fit-content;
+        height: fit-content;
+        padding: 32px;
+    }
+    fieldset{
+        display: flex;
+        flex-direction: row;
+        gap: 5px;
+    }
+    form > fieldset > input{
+        padding: 10px;
+        border-radius: 2rem;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        outline: none;
+        transition: none;
+        border: 1px solid gray;
+
+    }
+    form > fieldset > button{
+        padding: 10px;
+        border-radius: 2rem;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        font-weight: bold;
+        outline: none;
+        transition: none;
+        border: 1px solid gray;
+    }
+</style>
+<body>
+    <div id="container">
+       
+        
+        <form>
+            <fieldset>
+                <legend>* Todo App *</legend>
+            <input type="text" placeholder="Enter a new task" id="task_info"/>
+            <button type="submit">+ Add</button>
+            </fieldset>
+        </form>
+        <div>
+            <p>Task List ---</p>
+            <ul></ul>
+        </div>
+    </div>
+    <script>
+        const form= document.querySelector('form');
+        
+        form.addEventListener('submit', function(event) {
+            event.preventDefault();
+            const desc = document.getElementById("task_info").value;
+            const li = document.createElement('li');
+            const del = document.createElement('button');
+            del.textContent = 'Delete';
+            del.addEventListener('click', function() {
+                li.remove();
+            });
+
+            li.textContent = desc;
+            li.appendChild(del);
+            const ul = document.querySelector('ul');
+            ul.appendChild(li);
+        });
+    </script>
+</body>
+</html>
