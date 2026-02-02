@@ -89,21 +89,25 @@ app.put("/students/:id", async (req, res) => {
 
 
 
-app.delete("/students/:id", async (req, res)=>{
-    try{
-        const {id} = req.params;
+app.delete("/students/:id", async (req, res) => {
+    try {
+        const { id } = req.params;
+        const file = await fs.promises.readFile('students.json', 'utf-8');
+        existingStudents = JSON.parse(file);
+        
         const initialLength = existingStudents.length;
         existingStudents = existingStudents.filter(s => s.id !== parseInt(id));
-        if(existingStudents.length === initialLength) {
-            return res.status(404).send("Student not found");
+        
+        if (existingStudents.length === initialLength) {
+            return res.status(404).json({ error: "Student not found" });
         }
-        await fs.promises.writeFile('students.json',JSON.stringify(existingStudents, null, 2));
-        res.status(200).send("Student deleted successfully!!!");
-    }catch(err){
-        res.status(500).send('Internal Server Error: ' + err.message);
+        
+        await fs.promises.writeFile('students.json', JSON.stringify(existingStudents, null, 2));
+        res.status(200).json({ message: "Student deleted successfully" });
+    } catch (err) {
+        res.status(500).json({ error: 'Internal Server Error: ' + err.message });
     }
 });
-
 app.listen(3000, () => {
     console.log('Server is running on port 3000......');
 })
