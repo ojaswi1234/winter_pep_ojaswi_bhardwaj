@@ -6,15 +6,15 @@
     "course": "CSE"
   },
   {
-    "id": 2,
-    "name": "Raj",
-    "email": "raj@gmail.com",
-    "course": "CSE"
-  },
-  {
     "id": 3,
     "name": "anubhav",
     "email": "anub@gmail.com",
     "course": "MBBS"
+  },
+  {
+    "id": 4,
+    "name": "Kalia",
+    "email": "k@gmail.com",
+    "course": "AI"
   }
 ]
