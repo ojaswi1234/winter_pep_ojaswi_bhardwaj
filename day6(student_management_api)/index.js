@@ -48,6 +48,29 @@ app.get('/students', (req, res) => {
     stream.pipe(res);
 });
 
+app.get("/students/:id", async (req, res) => {
+    try {
+        const { id } = req.params;
+        const file = await fs.promises.readFile('students.json', 'utf-8');
+        existingStudents = JSON.parse(file);
+        
+        const student = existingStudents.find(s => s.id === parseInt(id));
+        
+        if (!student) {
+            return res.status(404).json({ error: "Student not found" });
+        }
+        
+        res.status(200).json(student);
+    } catch (err) {
+        res.status(500).json({ error: "Internal Server Error: " + err.message });
+    }
+});
+
+
+app.get("/students/:id",async (req, res) => {
+
+});
+
 
 app.put("/students/:id", async (req, res) => {
     try {
@@ -70,31 +93,6 @@ app.put("/students/:id", async (req, res) => {
 });
 
 
-app.patch("/student/:id", async (req, res) => {
-    try{
-        const id = req.params;
-        const {age} = req.body;
-        const file = await fs.promises.readFile('students.json', 'utf-8');
-        existingStudents = JSON.parse(file);
-
-        const studentIndex = existingStudents.findIndex(s => s.id == parseInt(id));
-
-        if(studentIndex === -1) {
-            return res.status(404).send("Student not found in database.......")
-        }
-        if(age){
-            existingStudents[studentIndex].age = age;
-        }else{
-            res.status(404).send("Enter updated value please//////")
-        }
-
-        await fs.promises.writeFile('students.json', JSON.stringify(existingStudents, null, 2))
-
-        res.status(200).json(existingStudents);
-    }catch(err){
-        res.status(400).send("Error - "+err.message);
-    }
-});
 
 app.delete("/students/:id", async (req, res)=>{
     try{
