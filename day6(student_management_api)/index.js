@@ -10,8 +10,8 @@ let existingStudents = [];
 
 app.post('/students', async (req, res) => {
     try{        
-        const { name, age, course } = req.body; 
-        if (!name || !age || !course) {
+        const { name, email, course } = req.body; 
+        if (!name || !email || !course) {
             return res.status(400).json({ 
                 error: 'Missing required fields',
                 received: req.body
@@ -31,7 +31,7 @@ app.post('/students', async (req, res) => {
         const newStudent = {
             id: newId, 
             name: name, 
-            age: age, 
+            email: email, 
             course: course
         };
         existingStudents.push(newStudent);
@@ -67,15 +67,10 @@ app.get("/students/:id", async (req, res) => {
 });
 
 
-app.get("/students/:id",async (req, res) => {
-
-});
-
-
 app.put("/students/:id", async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, age, course } = req.body;
+        const { name, email, course } = req.body;
         const file = await fs.promises.readFile('students.json', 'utf-8');
         existingStudents = JSON.parse(file);
         const studentIndex = existingStudents.findIndex(s => s.id === parseInt(id));
@@ -83,7 +78,7 @@ app.put("/students/:id", async (req, res) => {
             return res.status(404).send("Student not found");
         }
         if (name) existingStudents[studentIndex].name = name;
-        if (age) existingStudents[studentIndex].age = age;
+        if (email) existingStudents[studentIndex].email = email;
         if (course) existingStudents[studentIndex].course = course;
         await fs.promises.writeFile('students.json', JSON.stringify(existingStudents, null, 2));
         res.status(200).json(existingStudents[studentIndex]);
