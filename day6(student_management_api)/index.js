@@ -6,8 +6,6 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-let existingStudents = [];
-
 app.post('/students', async (req, res) => {
     try{        
         const { name, email, course } = req.body; 
@@ -17,6 +15,7 @@ app.post('/students', async (req, res) => {
                 received: req.body
             });
         }
+        let existingStudents;
         try {
             const file = await fs.promises.readFile('students.json', 'utf-8');
             existingStudents = JSON.parse(file);
@@ -52,7 +51,7 @@ app.get("/students/:id", async (req, res) => {
     try {
         const { id } = req.params;
         const file = await fs.promises.readFile('students.json', 'utf-8');
-        existingStudents = JSON.parse(file);
+        const existingStudents = JSON.parse(file);
         
         const student = existingStudents.find(s => s.id === parseInt(id));
         
@@ -72,7 +71,7 @@ app.put("/students/:id", async (req, res) => {
         const { id } = req.params;
         const { name, email, course } = req.body;
         const file = await fs.promises.readFile('students.json', 'utf-8');
-        existingStudents = JSON.parse(file);
+        let existingStudents = JSON.parse(file);
         const studentIndex = existingStudents.findIndex(s => s.id === parseInt(id));
         if (studentIndex === -1) {
             return res.status(404).send("Student not found");
@@ -93,7 +92,7 @@ app.delete("/students/:id", async (req, res) => {
     try {
         const { id } = req.params;
         const file = await fs.promises.readFile('students.json', 'utf-8');
-        existingStudents = JSON.parse(file);
+        let existingStudents = JSON.parse(file);
         
         const initialLength = existingStudents.length;
         existingStudents = existingStudents.filter(s => s.id !== parseInt(id));
