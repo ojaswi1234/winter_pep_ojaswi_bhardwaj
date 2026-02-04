@@ -123,15 +123,41 @@ app.patch("/user/status", (req, res) => {
 //     res.end();
 // })
 
-app.get("/users/:id", (req, res) => {
-    console.log(req.params);
-    res.send("user id received......")
-})
+
+// let students = [
+//     {id: 1, name: "Aman", rollno: 13},
+//     {id: 2, name: "Rohit", rollno: 24},
+//     {id: 3, name: "Vikas", rollno: 20}
+// ];
+
+// app.get("/users/:id", (req, res) => {
+//     const {id} = req.params;
+//     const data = students.find(s => s.id === parseInt(id));
+//     res.json({
+//         data: data
+//     });
+// });
 
 
-app.get("/users/:id/:rollno/:age", (req,res) => {
-    res.json(req.params);
-});
+// app.get("/student",(req,res) => {
+//     const {name} = req.query;
+
+//     const data = students.find(s => s.name === name);
+//     res.send({
+//         query: res.query,
+//         student: data
+//     });
+// });
+
+
+// app.get("/users/:id/:rollno/:age", (req,res) => {
+//     res.json(req.params);
+// });
+
+
+
+
+
 
 
 app.listen(3000, () => {
