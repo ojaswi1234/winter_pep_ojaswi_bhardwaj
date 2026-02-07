@@ -3,18 +3,18 @@ import {
     createComplaint, 
     deleteComplaint, 
     getAllComplaints, 
-    resolveComplaint 
+    getComplaintById,
+    updateComplaintStatus 
 } from "../controllers/complaint.controller.js";
-
-
-import isLoggedIn from  "../middlewares/auth.middleware.js";
+import isLoggedIn from "../middlewares/auth.middleware.js";
 
 const router = express.Router();
 
 router.get("/", getAllComplaints);
+router.get("/:id", getComplaintById);
 router.post("/", createComplaint);
 
-router.put("/:id/resolve", isLoggedIn, resolveComplaint);
+router.put("/:id", isLoggedIn, updateComplaintStatus);
 router.delete("/:id", isLoggedIn, deleteComplaint);
 
 export default router;

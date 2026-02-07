@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Complaint Tracker - Submit</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <nav>
+            <a href="index.html">Submit Complaint</a>
+            <a href="admin.html">Admin Dashboard</a>
+        </nav>
+        <h1>Submit a Complaint</h1>
+        <form id="complaintForm">
+            <label for="title">Title / Issue Type</label>
+            <input type="text" id="title" name="title" required placeholder="e.g. WiFi not working">
+
+            <label for="description">Description</label>
+            <textarea id="description" name="description" required placeholder="Describe your issue detailed..."></textarea>
+
+            <button type="submit">Submit Complaint</button>
+        </form>
+        <div id="message" style="margin-top:20px; text-align:center;"></div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>

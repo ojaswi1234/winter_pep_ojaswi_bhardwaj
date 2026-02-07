@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Complaint Tracker - Admin</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container" style="max-width: 1000px;">
+        <nav>
+            <a href="index.html">Submit Complaint</a>
+            <a href="admin.html">Admin Dashboard</a>
+        </nav>
+        <h1>Admin Dashboard</h1>
+        
+        <div style="margin-bottom: 20px; text-align: center;">
+            <input type="text" id="searchInput" placeholder="Search by ID or Title/Description..." oninput="filterComplaints()" style="width: 50%; padding: 10px;">
+        </div>
+
+        <div class="board-container">
+            <div class="status-column">
+                <h3 style="background: #faebcc; padding: 10px; margin: 0; text-align: center; border-bottom: 2px solid #8a6d3b;">Pending</h3>
+                <div id="pending-cards" class="cards-container"></div>
+            </div>
+            <div class="status-column">
+                <h3 style="background: #dff0d8; padding: 10px; margin: 0; text-align: center; border-bottom: 2px solid #3c763d;">Resolved</h3>
+                <div id="resolved-cards" class="cards-container"></div>
+            </div>
+            <div class="status-column">
+                <h3 style="background: #f2dede; padding: 10px; margin: 0; text-align: center; border-bottom: 2px solid #a94442;">Rejected</h3>
+                <div id="rejected-cards" class="cards-container"></div>
+            </div>
+        </div>
+
+    </div>
+    <script src="script.js"></script>
+    <script>
+        // Trigger generic load function if on admin page
+        document.addEventListener("DOMContentLoaded", loadComplaints);
+    </script>
+</body>
+</html>
