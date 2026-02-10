@@ -3,19 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Complaint Tracker - Admin</title>
+    <title>Hostel Complaint Tracker - Admin</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container" style="max-width: 1000px;">
+    <div class="container">
         <nav>
-            <a href="index.html">Submit Complaint</a>
-            <a href="admin.html">Admin Dashboard</a>
+            <a id="submit-complaint-link" href="index.html">Submit Complaint</a>
+            <a id="admin-dashboard-link" href="admin.html">Admin Dashboard</a>
         </nav>
+        <h1 class="main-title">Hostel Complaint Tracker</h1>
         <h1>Admin Dashboard</h1>
         
-        <div style="margin-bottom: 20px; text-align: center;">
-            <input type="text" id="searchInput" placeholder="Search by ID or Title/Description..." oninput="filterComplaints()" style="width: 50%; padding: 10px;">
+        <div class="search-container">
+            <input type="text" id="searchInput" placeholder="Search by ID or Title/Description..." oninput="filterComplaints()" class="search-input">
         </div>
 
         <div class="board-container">

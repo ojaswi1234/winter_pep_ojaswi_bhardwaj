@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Complaint Tracker - Submit</title>
+    <title>Hostel Complaint Tracker - Submit</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -12,17 +12,72 @@
             <a href="index.html">Submit Complaint</a>
             <a href="admin.html">Admin Dashboard</a>
         </nav>
-        <h1>Submit a Complaint</h1>
-        <form id="complaintForm">
-            <label for="title">Title / Issue Type</label>
-            <input type="text" id="title" name="title" required placeholder="e.g. WiFi not working">
+        <h1 class="main-title">Hostel Complaint Tracker</h1>
+        <div class="tabs">
+            <button class="tab-button active" onclick="showTab('submit')">Submit Complaint</button>
+            <button class="tab-button" onclick="showTab('view')">My Complaints</button>
+        </div>
+        
+        <div id="submit-tab" class="tab-content active">
+            <h1>Submit a Hostel Complaint</h1>
+            
+            <div class="location-container">
+                <button type="button" id="checkSimilarBtn" onclick="checkSimilarIssues()">Check Active Issues in My Wing</button>
+            </div>
+            
+            <div id="similarIssuesContainer" class="similar-issues-container" style="display: none;">
+                <h3>Active Issues in Your Wing</h3>
+                <p class="similar-issues-subtitle">Before creating a new complaint, check if someone already reported this issue:</p>
+                <div id="similarIssuesList" class="similar-issues-list"></div>
+                <div class="continue-or-new">
+                    <p><strong>Don't see your issue above?</strong> Continue creating a new complaint below:</p>
+                </div>
+            </div>
+            
+            <form id="complaintForm">
+                <label for="name">Your Name</label>
+                <input type="text" id="name" name="name" required placeholder="Your full name">
+                
+                <label for="email">Your Email</label>
+                <input type="email" id="email" name="email" required placeholder="your.email@example.com">
+                
+                <div class="location-row">
+                    <div class="form-group">
+                        <label for="wing">Building Block:</label>
+                        <select id="wing" name="wing" required>
+                            <option value="">Select Building Block</option>
+                            <option value="A-Block">A-Block</option>
+                            <option value="B-Block">B-Block</option>
+                            <option value="C-Block">C-Block</option>
+                            <option value="D-Block">D-Block</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="room">Room Number:</label>
+                        <input type="text" id="room" name="room" placeholder="e.g., 201" required>
+                    </div>
+                </div>
+                
+                <label for="title">Title / Issue Type</label>
+                <input type="text" id="title" name="title" required placeholder="e.g. WiFi not working">
 
-            <label for="description">Description</label>
-            <textarea id="description" name="description" required placeholder="Describe your issue detailed..."></textarea>
+                <label for="description">Description</label>
+                <textarea id="description" name="description" required placeholder="Describe your issue in detail..."></textarea>
 
-            <button type="submit">Submit Complaint</button>
-        </form>
-        <div id="message" style="margin-top:20px; text-align:center;"></div>
+                <button type="submit">Submit Complaint</button>
+            </form>
+            <div id="message" style="margin-top:20px; text-align:center;"></div>
+        </div>
+        
+        <div id="view-tab" class="tab-content">
+            <h1>My Hostel Complaints</h1>
+            <div class="email-search">
+                <label for="searchEmail">Enter your email to view complaints:</label>
+                <input type="email" id="searchEmail" placeholder="your.email@example.com">
+                <button onclick="loadUserComplaints()">View My Complaints</button>
+            </div>
+            <div id="userComplaintsContainer"></div>
+        </div>
     </div>
     <script src="script.js"></script>
 </body>
