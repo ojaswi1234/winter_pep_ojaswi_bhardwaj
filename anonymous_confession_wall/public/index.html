@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Night Whispers | Anonymous Confessions</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    
+    <!-- Navbar -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="logo">
+                <i class="fas fa-moon"></i>
+                <span>Night<span class="highlight">Whispers</span></span>
+            </div>
+            
+            <div class="nav-menu">
+                <a href="#" class="nav-link active" id="nav-feed">
+                    <i class="fas fa-stream"></i> Stream
+                </a>
+                <a href="#" class="nav-link" id="nav-history">
+                    <i class="fas fa-user-astronaut"></i> My Space
+                </a>
+            </div>
+
+            <!-- Auth Section -->
+            <div class="auth-section" id="auth-sidebar-section">
+                <!-- Injected via JS -->
+                <a href="/auth/google" class="btn-login">
+                    <i class="fab fa-google"></i> Login
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Container -->
+    <main class="main-container">
+        
+        <!-- Header / Hero Section -->
+        <header class="hero-section">
+            <h1 id="welcome-text">The Campus Safe Space</h1>
+            <p class="subtitle">Share your secrets safely in the dark.</p>
+            
+            <div class="header-tools">
+                <div class="search-box">
+                    <i class="fas fa-search"></i>
+                    <input type="text" placeholder="Search secrets...">
+                </div>
+            </div>
+
+            <!-- Dashboard Widgets (Mood & Topics) -->
+            <div class="dashboard-grid">
+                <div class="widget mood-forecast-widget">
+                    <div class="widget-header">
+                        <span>AI Forecast</span>
+                        <i class="fas fa-robot" style="color:var(--accent)"></i>
+                    </div>
+                    <div id="ai-forecast-content" class="forecast-content">
+                        Initializing AI weather satellite...
+                    </div>
+                </div>
+
+                <div class="widget mood-widget">
+                    <div class="widget-header">Campus Vibe</div>
+                    <!-- JS Injects Mood Meter Here -->
+                    <div class="mood-placeholder">Analyzing...</div>
+                </div>
+                
+                <div class="widget topics-widget">
+                    <div class="widget-header">Trending Now</div>
+                    <div class="tags-cloud">
+                        <!-- JS Injects Tags Here -->
+                        <span class="tag">#loading</span>
+                    </div>
+                </div>
+
+                <!-- Spotlight Widget -->
+                <div class="widget spotlight-widget">
+                    <div class="widget-header">
+                        <span>Spotlight</span>
+                        <select id="spotlight-select">
+                            <option value="all">All Time</option>
+                            <!-- JS Injects Options -->
+                        </select>
+                    </div>
+                    <div id="spotlight-content" class="spotlight-content">
+                        <!-- JS Injects Top Post -->
+                        <div class="spotlight-placeholder">Select a category...</div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Feed View -->
+        <section id="feed-view" class="view-section active">
+            <div class="masonry-grid" id="confessions-container">
+                <!-- JS Injects Cards Here -->
+            </div>
+            <!-- Floating Write Button -->
+            <button title="Write a Secret" class="fab-write" id="write-secret-btn">
+                <i class="fas fa-pen-nib"></i>
+            </button>
+        </section>
+
+        <!-- History View -->
+        <section id="history-view" class="view-section" style="display: none;">
+            <div class="profile-header-card">
+                <div class="profile-info-row">
+                    <div class="profile-avatar">
+                        <img src="https://ui-avatars.com/api/?name=Guest&background=16213e&color=fff" id="profile-card-img" alt="User">
+                    </div>
+                    <div class="profile-details">
+                        <h2 id="profile-card-name">Guest User</h2>
+                        <span class="badge-role">Anonymous Member</span>
+                    </div>
+                </div>
+                <div class="profile-stats-row">
+                    <div class="stat-box">
+                        <span class="stat-num" id="user-secrets-count">0</span>
+                        <span class="stat-lbl">Secrets</span>
+                    </div>
+                    <div class="stat-box">
+                        <span class="stat-num" id="user-hearts-count">0</span>
+                        <span class="stat-lbl">Reactions</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="history-list-container" id="history-container">
+                <!-- JS Injects History Items Here -->
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Modal -->
+    <div id="secret-modal" class="modal-overlay">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>Whisper a Secret</h3>
+                <span class="close-modal"><i class="fas fa-times"></i></span>
+            </div>
+            <form id="confession-form">
+                <div class="input-group">
+                    <textarea id="confession-text" placeholder="Nobody knows it's you..." required></textarea>
+                </div>
+
+                <div class="emotion-selector">
+                    <label>What's the vibe?</label>
+                    <div class="emotion-tags">
+                        <label class="check-tag">
+                            <input type="radio" name="mood-tag" value="Study Stress" required>
+                            <span>📚 Stress</span>
+                        </label>
+                        <label class="check-tag">
+                            <input type="radio" name="mood-tag" value="Crush">
+                            <span>❤️ Crush</span>
+                        </label>
+                        <label class="check-tag">
+                            <input type="radio" name="mood-tag" value="Funny">
+                            <span>😂 Funny</span>
+                        </label>
+                        <label class="check-tag">
+                            <input type="radio" name="mood-tag" value="Rant">
+                            <span>😤 Rant</span>
+                        </label>
+                        <label class="check-tag">
+                            <input type="radio" name="mood-tag" value="Campus Life">
+                            <span>🏫 Campus</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <input type="text" id="secret-code" placeholder="Create a secret deletion code (min 4 chars)" minlength="4" required>
+                </div>
+
+                <button type="submit" class="btn-submit-glow">
+                    Release into the Void <i class="fas fa-paper-plane"></i>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
