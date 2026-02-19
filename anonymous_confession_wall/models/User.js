@@ -1,7 +1,4 @@
-// ─────────────────────────────────────────────────
-// models/User.js — User Schema
-// Represents a user who signed in with Google
-// ─────────────────────────────────────────────────
+
 const mongoose = require('mongoose');
 
 const UserSchema = new mongoose.Schema({

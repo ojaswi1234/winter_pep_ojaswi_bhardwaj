@@ -1,13 +1,5 @@
-// ─────────────────────────────────────────────────
-// controllers/confessionController.js
-// All the logic for creating, reading, editing,
-// deleting and reacting to confessions
-// ─────────────────────────────────────────────────
 const Confession = require('../models/Confession');
 
-// ── GET /confessions/mine ──────────────────────────────
-// Returns only the confessions posted by the logged-in user
-// Requires login
 const getMyConfessions = async (req, res) => {
     try {
         const confessions = await Confession
@@ -21,12 +13,8 @@ const getMyConfessions = async (req, res) => {
     }
 };
 
-// ── GET /confessions/forecast ──────────────────────
-// Returns an AI generated weather forecast based on recent confessions
-// Public
 const getMoodForecast = async (req, res) => {
     try {
-        // 1. Get recent confessions (last 20) with reactions
         const recentConfessions = await Confession
             .find()
             .sort({ createdAt: -1 })
@@ -38,7 +26,6 @@ const getMoodForecast = async (req, res) => {
             return res.json({ forecast: "Clear skies. No secrets on the horizon yet." });
         }
 
-        // 2. Prepare prompt for Groq with engagement context
         const confessionTexts = recentConfessions.map(c => {
              const likes = (c.reactions?.like || 0) + (c.reactions?.love || 0) + (c.reactions?.laugh || 0);
              const viralTag = likes > 5 ? ' [VIRAL!]' : '';
@@ -55,8 +42,6 @@ const getMoodForecast = async (req, res) => {
         ${confessionTexts}
         `;
 
-        // 3. Call Groq API
-        // Using native fetch (Node 18+)
         const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
             method: 'POST',
             headers: {
@@ -68,7 +53,7 @@ const getMoodForecast = async (req, res) => {
                     { role: 'system', content: 'You are a helpful assistant.' },
                     { role: 'user', content: prompt }
                 ],
-                model: 'llama-3.3-70b-versatile', // Updated to latest supported model
+                model: 'llama-3.3-70b-versatile',
                 temperature: 0.7,
                 max_tokens: 100
             })
@@ -91,30 +76,22 @@ const getMoodForecast = async (req, res) => {
     }
 };
 
-// ── GET /confessions ────────────────────────────
-// Returns every confession, newest first
-// Public — no login needed
 const getConfessions = async (req, res) => {
     try {
         const confessions = await Confession
             .find()
-            .select('-secretCode')   // never send the secret code to the browser
+            .select('-secretCode')
             .sort({ createdAt: -1 })
-            .lean();                 // returns plain JS objects instead of Mongoose docs — much faster
+            .lean();
         res.json(confessions);
     } catch (err) {
         res.status(500).json({ error: 'Could not load confessions.' });
     }
 };
 
-// ── POST /confessions ───────────────────────────
-// Creates a new confession
-// Requires login (ensureAuth middleware handles this)
-// Body: { text, secretCode, tags }
 const createConfession = async (req, res) => {
     const { text, secretCode, tags } = req.body;
 
-    // Validate inputs
     if (!text || !text.trim())
         return res.status(400).json({ error: 'Confession text cannot be empty.' });
     if (!secretCode || secretCode.length < 4)
@@ -125,7 +102,7 @@ const createConfession = async (req, res) => {
             text:       text.trim(),
             secretCode: secretCode,
             tags:       tags || [],
-            userId:     req.user.id, // comes from passport (guaranteed by ensureAuth)
+            userId:     req.user.id,
         });
 
         res.status(201).json(confession);
@@ -134,10 +111,6 @@ const createConfession = async (req, res) => {
     }
 };
 
-// ── PUT /confessions/:id ────────────────────────
-// Edits a confession's text
-// No login needed — secret code acts as the password
-// Body: { secretCode, text }
 const updateConfession = async (req, res) => {
     const { secretCode, text } = req.body;
 
@@ -150,7 +123,6 @@ const updateConfession = async (req, res) => {
         if (!confession)
             return res.status(404).json({ error: 'Confession not found.' });
 
-        // Check secret code before allowing edit
         if (confession.secretCode !== secretCode)
             return res.status(401).json({ error: 'Wrong secret code.' });
 
@@ -163,10 +135,6 @@ const updateConfession = async (req, res) => {
     }
 };
 
-// ── DELETE /confessions/:id ─────────────────────
-// Deletes a confession
-// No login needed — secret code acts as the password
-// Body: { secretCode }
 const deleteConfession = async (req, res) => {
     const { secretCode } = req.body;
 
@@ -176,7 +144,6 @@ const deleteConfession = async (req, res) => {
         if (!confession)
             return res.status(404).json({ error: 'Confession not found.' });
 
-        // Check secret code before allowing delete
         if (confession.secretCode !== secretCode)
             return res.status(401).json({ error: 'Wrong secret code.' });
 
@@ -187,10 +154,6 @@ const deleteConfession = async (req, res) => {
     }
 };
 
-// ── POST /confessions/:id/react ─────────────────
-// Adds +1 to a reaction counter
-// Public — no login needed
-// Body: { reactionType }  →  "like" | "love" | "laugh"
 const reactToConfession = async (req, res) => {
     const { reactionType } = req.body;
     const allowed = ['like', 'love', 'laugh'];
@@ -211,6 +174,16 @@ const reactToConfession = async (req, res) => {
     } catch (err) {
         res.status(500).json({ error: 'Could not save reaction.' });
     }
+};
+
+module.exports = {
+    getConfessions,
+    getMyConfessions,
+    createConfession,
+    updateConfession,
+    deleteConfession,
+    reactToConfession,
+    getMoodForecast,
 };
 
 module.exports = {

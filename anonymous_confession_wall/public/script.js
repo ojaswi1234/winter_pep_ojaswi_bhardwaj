@@ -1,6 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
 
-    // ── DOM refs ───────────────────────────────────────────────
     const navFeed              = document.getElementById('nav-feed');
     const navHistory           = document.getElementById('nav-history');
     const feedView             = document.getElementById('feed-view');
@@ -19,9 +18,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let isAuthenticated = false;
 
-    // ── Helpers ────────────────────────────────────────────────
-
-    // Converts a DB date into "2m ago", "1h ago", etc.
     function timeAgo(dateStr) {
         const diff = Math.floor((Date.now() - new Date(dateStr)) / 1000);
         if (diff < 60)    return `${diff}s ago`;
@@ -39,27 +35,22 @@ document.addEventListener('DOMContentLoaded', () => {
         'Other':        'fas fa-comment',
     };
 
-    // Spotlight Helper
     function updateSpotlight(confessions) {
         const spotlightSelect = document.getElementById('spotlight-select');
         const spotlightContent = document.getElementById('spotlight-content');
         
-        // available categories
         const categories = ['All', ...Object.keys(moodIcons)]; 
         
-        // Populate dropdown if empty
         if (spotlightSelect.options.length <= 1) {
             spotlightSelect.innerHTML = categories.map(cat => 
                 `<option value="${cat}">${cat}</option>`
             ).join('');
             
-            // Listen for changes
             spotlightSelect.addEventListener('change', () => {
                 renderSpotlight(spotlightSelect.value, confessions);
             });
         }
         
-        // Initial Render
         renderSpotlight(spotlightSelect.value || 'All', confessions);
     }
 
@@ -76,7 +67,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // Find max likes
         const topPost = filtered.reduce((prev, current) => {
             const prevLikes = prev.reactions?.like || 0;
             const currentLikes = current.reactions?.like || 0;
@@ -99,27 +89,23 @@ document.addEventListener('DOMContentLoaded', () => {
             </div>`;
     }
 
-    // ── AI Forecast ────────────────────────────────────────────
     async function loadAiForecast() {
         const forecastEl = document.getElementById('ai-forecast-content');
         if (!forecastEl) return;
 
         try {
-            // Show loading animation
             let dots = 0;
             const loadingInterval = setInterval(() => {
                 dots = (dots + 1) % 4;
                 forecastEl.textContent = 'Connecting to weather satellite' + '.'.repeat(dots);
             }, 500);
 
-            // Fetch from backend
             const res = await api('/confessions/forecast');
             const data = await res.json();
             
             clearInterval(loadingInterval);
             
             if (data.forecast) {
-                // Typewriter effect
                 forecastEl.textContent = '';
                 let i = 0;
                 const txt = data.forecast;
@@ -127,7 +113,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (i < txt.length) {
                         forecastEl.textContent += txt.charAt(i);
                         i++;
-                        setTimeout(typeWriter, 30); // Speed of typing
+                        setTimeout(typeWriter, 30);
                     }
                 };
                 typeWriter();
@@ -139,14 +125,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Simple fetch wrapper — handles JSON body for POST/PUT/DELETE
     async function api(url, method = 'GET', body = null) {
         const opts = { method, headers: { 'Content-Type': 'application/json' } };
         if (body) opts.body = JSON.stringify(body);
         return fetch(url, opts);
     }
 
-    // ── Search & Filter ───────────────────────────────────────
     const searchInput = document.querySelector('.search-box input');
 
     searchInput.addEventListener('input', (e) => {
@@ -165,19 +149,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 card.style.display = 'none';
             }
         });
-        
-        // Show "no results" message if needed?
-        // For now, simpler is better.
     });
 
-    // ── Widgets ────────────────────────────────────────────────
     function updateWidgets(confessions) {
         updateSpotlight(confessions);
 
         const tagScores = {};
         
-        // Vibe Logic: Engagement Weighted (Base + Likes + Love + Laugh)
-        // A single "Funny" post with 50 likes is more relevant than 10 "Sad" posts with 0 likes.
         confessions.forEach(c => {
             const reactions = c.reactions || {};
             const score = 1 
@@ -219,7 +197,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // ── Feed ───────────────────────────────────────────────────
     async function loadConfessions() {
         try {
             const data = await (await fetch('/confessions')).json();
@@ -257,7 +234,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // ── My History (logged-in only) ────────────────────────────
     async function loadUserHistory() {
         try {
             const data = await (await fetch('/confessions/mine')).json();
@@ -278,7 +254,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // ── Auth Check ─────────────────────────────────────────────
     async function checkAuth() {
         let user = null;
         try {
@@ -319,7 +294,6 @@ document.addEventListener('DOMContentLoaded', () => {
         loadConfessions();
     }
 
-    // ── Navigation ─────────────────────────────────────────────
     navFeed.addEventListener('click', (e) => {
         e.preventDefault();
         navFeed.classList.add('active');
@@ -342,12 +316,10 @@ document.addEventListener('DOMContentLoaded', () => {
         loadUserHistory();
     });
 
-    // ── Modal ──────────────────────────────────────────────────
     writeSecretBtn.addEventListener('click', () => secretModal.style.display = 'flex');
     document.querySelector('.close-modal').addEventListener('click', () => secretModal.style.display = 'none');
     window.addEventListener('click', (e) => { if (e.target === secretModal) secretModal.style.display = 'none'; });
 
-    // ── Post Confession ────────────────────────────────────────
     confessionForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const text       = document.getElementById('confession-text').value.trim();
@@ -365,8 +337,6 @@ document.addEventListener('DOMContentLoaded', () => {
             alert(err.error || 'Failed to post. Try again.');
         }
     });
-
-    // ── Global Actions (called from card onclick) ──────────────
 
     window.reactTo = async (id, type) => {
         const res = await api(`/confessions/${id}/react`, 'POST', { reactionType: type });
@@ -394,7 +364,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // ── Init ───────────────────────────────────────────────────
     checkAuth();
     loadAiForecast();
 });
