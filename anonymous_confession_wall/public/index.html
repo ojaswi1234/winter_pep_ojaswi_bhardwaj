@@ -56,16 +56,6 @@
 
             <!-- Dashboard Widgets (Mood & Topics) -->
             <div class="dashboard-grid">
-                <div class="widget mood-forecast-widget">
-                    <div class="widget-header">
-                        <span>AI Forecast</span>
-                        <i class="fas fa-robot" style="color:var(--accent)"></i>
-                    </div>
-                    <div id="ai-forecast-content" class="forecast-content">
-                        Initializing AI weather satellite...
-                    </div>
-                </div>
-
                 <div class="widget mood-widget">
                     <div class="widget-header">Campus Vibe</div>
                     
@@ -102,6 +92,12 @@
             <div class="masonry-grid" id="confessions-container">
                 <!-- JS Injects Cards Here -->
             </div>
+            
+            <!-- Pagination Controls -->
+            <div id="pagination-container" class="pagination-container" style="display: none;">
+                <!-- JS Injects Pagination Here -->
+            </div>
+            
             <!-- Floating Write Button -->
             <button title="Write a Secret" class="fab-write" id="write-secret-btn">
                 <i class="fas fa-pen-nib"></i>
@@ -127,7 +123,7 @@
                     </div>
                     <div class="stat-box">
                         <span class="stat-num" id="user-hearts-count">0</span>
-                        <span class="stat-lbl">Reactions</span>
+                        <span class="stat-lbl">Upvotes</span>
                     </div>
                 </div>
             </div>

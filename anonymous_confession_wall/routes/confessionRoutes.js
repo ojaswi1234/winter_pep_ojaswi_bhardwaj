@@ -8,12 +8,9 @@ const {
     updateConfession,
     deleteConfession,
     reactToConfession,
-    getMoodForecast,
 } = require('../controllers/confessionController');
 
 router.get('/', getConfessions);
-
-router.get('/forecast', getMoodForecast);
 
 router.get('/mine', ensureAuth, getMyConfessions);
 
@@ -23,7 +20,5 @@ router.put('/:id',    updateConfession);
 router.delete('/:id', deleteConfession);
 
 router.post('/:id/react', reactToConfession);
-
-module.exports = router;
 
 module.exports = router;

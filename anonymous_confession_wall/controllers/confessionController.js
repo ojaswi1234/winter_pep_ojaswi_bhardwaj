@@ -13,77 +13,35 @@ const getMyConfessions = async (req, res) => {
     }
 };
 
-const getMoodForecast = async (req, res) => {
-    try {
-        const recentConfessions = await Confession
-            .find()
-            .sort({ createdAt: -1 })
-            .limit(20)
-            .select('text tags reactions')
-            .lean();
 
-        if (recentConfessions.length === 0) {
-            return res.json({ forecast: "Clear skies. No secrets on the horizon yet." });
-        }
-
-        const confessionTexts = recentConfessions.map(c => {
-             const likes = (c.reactions?.like || 0) + (c.reactions?.love || 0) + (c.reactions?.laugh || 0);
-             const viralTag = likes > 5 ? ' [VIRAL!]' : '';
-             return `[${c.tags[0] || 'General'}${viralTag}]: ${c.text}`;
-        }).join('\n');
-        
-        const prompt = `
-        You are a witty campus weather reporter. Based on these recent student confessions, give a short, funny 1-sentence weather forecast for the campus mood. 
-        Pay extra attention to posts marked [VIRAL!] as they represent the dominant mood.
-        Use metaphors like "heavy showers of regret", "sunny spells of romance", "high pressure exams", etc.
-        keep it under 20 words.
-
-        Confessions:
-        ${confessionTexts}
-        `;
-
-        const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                messages: [
-                    { role: 'system', content: 'You are a helpful assistant.' },
-                    { role: 'user', content: prompt }
-                ],
-                model: 'llama-3.3-70b-versatile',
-                temperature: 0.7,
-                max_tokens: 100
-            })
-        });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Groq API Error Details:', errorText);
-            throw new Error(`Groq API Error: ${response.status} ${response.statusText}`);
-        }
-
-        const data = await response.json();
-        const forecast = data.choices[0]?.message?.content?.trim() || "Cloudy with a chance of secrets.";
-
-        res.json({ forecast });
-
-    } catch (err) {
-        console.error('AI Forecast Error:', err);
-        res.json({ forecast: "Weather system offline. Try looking out the window." });
-    }
-};
 
 const getConfessions = async (req, res) => {
     try {
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const skip = (page - 1) * limit;
+        
         const confessions = await Confession
             .find()
             .select('-secretCode')
             .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit)
             .lean();
-        res.json(confessions);
+            
+        const totalConfessions = await Confession.countDocuments();
+        const totalPages = Math.ceil(totalConfessions / limit);
+        
+        res.json({
+            confessions,
+            pagination: {
+                currentPage: page,
+                totalPages,
+                totalConfessions,
+                hasNextPage: page < totalPages,
+                hasPrevPage: page > 1
+            }
+        });
     } catch (err) {
         res.status(500).json({ error: 'Could not load confessions.' });
     }
@@ -156,7 +114,7 @@ const deleteConfession = async (req, res) => {
 
 const reactToConfession = async (req, res) => {
     const { reactionType } = req.body;
-    const allowed = ['like', 'love', 'laugh'];
+    const allowed = ['upvote', 'downvote', 'love', 'laugh'];
 
     if (!allowed.includes(reactionType))
         return res.status(400).json({ error: `Reaction must be one of: ${allowed.join(', ')}` });
@@ -166,12 +124,21 @@ const reactToConfession = async (req, res) => {
 
         if (!confession)
             return res.status(404).json({ error: 'Confession not found.' });
+            
+        // ensure initialization if missing in old documents 
+        if(!confession.reactions) confession.reactions = {};
+        if(typeof confession.reactions[reactionType] !== 'number') confession.reactions[reactionType] = 0;
 
         confession.reactions[reactionType] += 1;
+        
+        // Mark modified because we might be modifying a nested property that mongoose didn't track perfectly if dynamic
+        confession.markModified('reactions'); 
+        
         await confession.save();
 
         res.json(confession);
     } catch (err) {
+        console.error(err);
         res.status(500).json({ error: 'Could not save reaction.' });
     }
 };
@@ -183,15 +150,4 @@ module.exports = {
     updateConfession,
     deleteConfession,
     reactToConfession,
-    getMoodForecast,
-};
-
-module.exports = {
-    getConfessions,
-    getMyConfessions,
-    createConfession,
-    updateConfession,
-    deleteConfession,
-    reactToConfession,
-    getMoodForecast,
 };

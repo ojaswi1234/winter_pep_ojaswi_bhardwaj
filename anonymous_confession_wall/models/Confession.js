@@ -13,9 +13,10 @@ const ConfessionSchema = new mongoose.Schema({
 
    
     reactions: {
-        like:  { type: Number, default: 0 },
-        love:  { type: Number, default: 0 },
-        laugh: { type: Number, default: 0 },
+        upvote:   { type: Number, default: 0 },
+        downvote: { type: Number, default: 0 },
+        love:     { type: Number, default: 0 },
+        laugh:    { type: Number, default: 0 },
     },
 
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
