@@ -7,8 +7,7 @@ const User = require('../models/User');
 
 module.exports = function (passport) {
 
-    // ── Google Strategy ─────────────────────────────
-    // This runs once when Google sends back the user's profile
+   
     passport.use(new GoogleStrategy(
         {
             clientID:     process.env.GOOGLE_CLIENT_ID,
@@ -17,11 +16,11 @@ module.exports = function (passport) {
         },
         async (accessToken, refreshToken, profile, done) => {
             try {
-                // Check if this Google user already exists in our database
+              
                 let user = await User.findOne({ googleId: profile.id });
 
                 if (!user) {
-                    // New user — save them to the database
+                   
                     user = await User.create({
                         googleId:    profile.id,
                         displayName: profile.displayName,
@@ -29,9 +28,9 @@ module.exports = function (passport) {
                     });
                 }
 
-                return done(null, user); // Login successful
+                return done(null, user); 
             } catch (err) {
-                return done(err, null);  // Something went wrong
+                return done(err, null);  
             }
         }
     ));

@@ -19,6 +19,22 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentPage = 1;
     const confessionsPerPage = 10;
     let paginationData = {};
+    let currentConfessions = []; // GLOBAL STORE
+    let currentOpenId = null; // Track Open Modal
+
+    function parseConfessionText(text) {
+        if (!text) return '';
+        // 1. Sanitize HTML to prevent XSS (basic)
+        const tempDiv = document.createElement('div');
+        tempDiv.textContent = text;
+        const safeText = tempDiv.innerHTML;
+
+        // 2. Replace [http...] with <img> tag
+        // Matches square brackets containing http/https URL
+        return safeText.replace(/\[(https?:\/\/[^\]]+)\]/g, (match, url) => {
+            return `<img src="${url}" class="confession-img" alt="Confession Image" loading="lazy">`;
+        });
+    }
 
     function timeAgo(dateStr) {
         const diff = Math.floor((Date.now() - new Date(dateStr)) / 1000);
@@ -175,6 +191,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             paginationData = data.pagination;
             currentPage = page;
+            currentConfessions = data.confessions; // Store for modal access
             
             updateWidgets(data.confessions);
             confessionsContainer.innerHTML = data.confessions.length
@@ -182,25 +199,25 @@ document.addEventListener('DOMContentLoaded', () => {
                     const tag  = c.tags?.[0] || 'Campus Life';
                     const icon = moodIcons[tag] || 'fas fa-comment';
                     return `
-                        <div class="confession-card">
+                        <div class="confession-card" onclick="openReadModal('${c._id}')">
                             <div class="card-header">
                                 <span class="tag-badge"><i class="${icon}"></i> ${tag}</span>
                                 <span class="time-ago">${timeAgo(c.createdAt)}</span>
                             </div>
-                            <div class="card-content">${c.text}</div>
+                            <div class="card-content">${parseConfessionText(c.text)}</div>
                             <div class="card-footer">
                                 <div class="anon-id"><i class="fas fa-mask"></i> Anon #${c._id.slice(-4)}</div>
                                 <div class="card-stats">
-                                    <div class="stat vote-btn upvote" onclick="reactTo('${c._id}','upvote')">
+                                    <div class="stat vote-btn upvote" onclick="event.stopPropagation(); reactTo('${c._id}','upvote')">
                                         <i class="fas fa-arrow-up"></i> ${c.reactions?.upvote || 0}
                                     </div>
-                                    <div class="stat vote-btn downvote" onclick="reactTo('${c._id}','downvote')">
+                                    <div class="stat vote-btn downvote" onclick="event.stopPropagation(); reactTo('${c._id}','downvote')">
                                         <i class="fas fa-arrow-down"></i> ${c.reactions?.downvote || 0}
                                     </div>
-                                    <div class="stat" onclick="editConfession('${c._id}')" title="Edit">
+                                    <div class="stat" onclick="event.stopPropagation(); editConfession('${c._id}')" title="Edit">
                                         <i class="fas fa-edit"></i>
                                     </div>
-                                    <div class="stat" onclick="deleteConfession('${c._id}')" title="Delete">
+                                    <div class="stat" onclick="event.stopPropagation(); deleteConfession('${c._id}')" title="Delete">
                                         <i class="fas fa-trash"></i>
                                     </div>
                                 </div>
@@ -370,7 +387,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.reactTo = async (id, type) => {
         const res = await api(`/confessions/${id}/react`, 'POST', { reactionType: type });
-        if (res.ok) loadConfessions(currentPage);
+        if (res.ok) {
+            await loadConfessions(currentPage);
+            // If modal is open for this item, refresh it
+            const modal = document.getElementById('read-more-modal');
+            if (modal.classList.contains('active') && id === currentOpenId) {
+                window.openReadModal(id);
+            }
+        }
     };
 
     window.editConfession = async (id) => {
@@ -394,6 +418,56 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    // Start of Read More Modal Logic
+    const readModal = document.getElementById('read-more-modal');
+
+    window.openReadModal = (id) => {
+        const confession = currentConfessions.find(c => c._id === id);
+        if (!confession) return;
+
+        currentOpenId = id; // Track open item
+
+        const tag = confession.tags?.[0] || 'Campus Life';
+        const icon = moodIcons[tag] || 'fas fa-comment';
+
+        const upvotes = confession.reactions?.upvote || 0;
+        const downvotes = confession.reactions?.downvote || 0;
+
+        document.getElementById('read-tags').innerHTML = `<i class='${icon}'></i> ${tag}`;
+        document.getElementById('read-time').textContent = timeAgo(confession.createdAt);
+        document.getElementById('read-body').innerHTML = parseConfessionText(confession.text);
+        document.getElementById('read-anon-id').innerHTML = `<i class='fas fa-mask'></i> Anon #${confession._id.slice(-4)}`;
+        
+        // Note: reactTo is global, so this works
+        document.getElementById('read-stats').innerHTML = `
+            <div class="stat vote-btn upvote" onclick="event.stopPropagation(); reactTo('${confession._id}','upvote')">
+                <i class="fas fa-arrow-up"></i> ${upvotes}
+            </div>
+            <div class="stat vote-btn downvote" onclick="event.stopPropagation(); reactTo('${confession._id}','downvote')">
+                <i class="fas fa-arrow-down"></i> ${downvotes}
+            </div>
+        `;
+
+        readModal.classList.add('active');
+        readModal.style.display = 'flex';
+        document.body.style.overflow = 'hidden'; 
+    };
+
+    window.closeReadModal = () => {
+        currentOpenId = null; // Clear tracking
+        const modal = document.getElementById('read-more-modal');
+        modal.classList.remove('active');
+        setTimeout(() => {
+            modal.style.display = 'none';
+            document.body.style.overflow = '';
+        }, 300);
+    };
+
+    readModal.addEventListener('click', (e) => {
+        if (e.target === readModal) window.closeReadModal();
+    });
+
     checkAuth();
 });
+
 

@@ -320,6 +320,21 @@ body {
     line-height: 1.6;
     margin-bottom: 20px;
     color: #e2e2e2;
+    max-height: 150px; /* Fixed height for preview */
+    overflow: hidden;
+    position: relative;
+}
+
+/* Add fade effect to indicate more content */
+.card-content::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 50px;
+    background: linear-gradient(to bottom, transparent, var(--bg-card));
+    pointer-events: none;
 }
 
 .card-footer {
@@ -721,3 +736,147 @@ body {
 .vote-btn:hover { background: rgba(255, 255, 255, 0.1); }
 .upvote:hover { color: #76ff03; background: rgba(118, 255, 3, 0.1); }
 .downvote:hover { color: #ff3d00; background: rgba(255, 61, 0, 0.1); }
+/* Masonry Layout */
+.masonry-grid {
+    column-count: 3;
+    column-gap: 20px;
+    padding: 20px 0;
+}
+
+.confession-card {
+    display: inline-block;
+    width: 100%;
+    break-inside: avoid;
+    margin-bottom: 20px;
+    cursor: pointer;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.confession-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+    border-color: var(--accent);
+}
+
+@media (max-width: 1024px) {
+    .masonry-grid {
+        column-count: 2;
+    }
+}
+
+@media (max-width: 600px) {
+    .masonry-grid {
+        column-count: 1;
+    }
+}
+
+/* Read More Modal */
+#read-more-modal {
+    display: none;
+    position: fixed;
+    top: 0; 
+    left: 0;
+    width: 100%; 
+    height: 100%;
+    background: rgba(10, 25, 47, 0.95);
+    backdrop-filter: blur(5px);
+    z-index: 2000;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+#read-more-modal.active {
+    opacity: 1;
+    pointer-events: all;
+}
+
+.read-more-content {
+    background: var(--bg-card);
+    width: 50vw;       /* Changed from 100% to create a reasonable starting size */
+    height: 60vh;      /* Explicit height for consistency */
+    min-width: 300px;  /* Minimum constraints */
+    min-height: 300px;
+    max-width: 95vw;   /* Allow growing almost to full screen */
+    max-height: 95vh;
+    
+    border-radius: 20px;
+    border: 1px solid var(--accent);
+    box-shadow: 0 0 30px rgba(118, 255, 3, 0.2);
+    
+    display: flex;
+    flex-direction: column;
+    
+    overflow: hidden; /* Necessary for child elements but might hide resize handle in some cases, checking below */
+    resize: both;     /* Enables resizing */
+    
+    /* Ensure the resize handle is visible if overflow is hidden */
+    /* Often overflow: hidden hides the grabber. Let's use auto for the container itself to be safe, 
+       but we want the scrollbar to be on the body, not the container. 
+       Actually, `overflow: hidden` usually supports resize in modern browsers (Chrome/Firefox). 
+       But to be safe and standard, `overflow: auto` is better for resize containers. */
+    overflow: auto; 
+
+    transform: scale(0.9);
+    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+#read-more-modal.active .read-more-content {
+    transform: scale(1);
+}
+
+.read-more-header {
+    background: rgba(0,0,0,0.2);
+    padding: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.read-more-body {
+    padding: 30px;
+    overflow-y: auto;
+    font-size: 1.2rem;
+    line-height: 1.8;
+    white-space: pre-wrap;
+    color: var(--text-main);
+}
+
+.read-more-footer {
+    padding: 20px;
+    background: rgba(0,0,0,0.2);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid var(--border-color);
+}
+
+.close-read-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 1.5rem;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.close-read-btn:hover {
+    color: var(--highlight-yellow);
+    transform: rotate(90deg);
+}
+
+
+/* Confession Image Styles */
+.confession-img {
+    max-width: 100%;
+    border-radius: 8px;
+    margin: 10px 0;
+    display: block;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    border: 1px solid var(--border-color);
+}
+

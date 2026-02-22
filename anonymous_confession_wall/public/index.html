@@ -184,6 +184,28 @@
         </div>
     </div>
 
+    <!-- Read More Modal -->
+    <div id="read-more-modal" class="modal-overlay">
+        <div class="read-more-content">
+            <div class="read-more-header">
+                <div class="header-left">
+                    <span id="read-tags" class="tag-badge"></span>
+                    <span id="read-time" class="time-ago"></span>
+                </div>
+                <button title="Close" class="close-read-btn" onclick="closeReadModal()"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="read-body" class="read-more-body">
+                <!-- Content injected via JS -->
+            </div>
+            <div class="read-more-footer">
+                <div class="anon-id" id="read-anon-id"></div>
+                <div class="read-stats" id="read-stats">
+                    <!-- Stats injected via JS -->
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="script.js"></script>
 </body>
 </html>
