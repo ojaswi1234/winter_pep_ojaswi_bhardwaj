@@ -657,7 +657,15 @@ body {
     font-style: italic;
     border-left: 3px solid var(--highlight-yellow);
     padding-left: 15px;
+    /* User request: remove truncation for spotlight */
+    max-height: none;
+    overflow: visible;
 }
+
+.spotlight-card .card-content::after {
+    display: none;
+}
+
 .spotlight-card .card-footer {
     display: flex;
     justify-content: space-between;
