@@ -1,0 +1,17 @@
+{
+  "name": "capstone_project",
+  "version": "1.0.0",
+  "description": "A real-time collaborative whiteboard application built with the MERN Stack (MongoDB, Express.js, React.js, Node.js) and Socket.io. This project allows multiple users to join rooms, draw simultaneously, and chat in real-time.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "concurrently \"cd server && npm start\" \"cd client && npm run dev\"",
+    "setup": "cd server && npm install && cd ../client && npm install"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
