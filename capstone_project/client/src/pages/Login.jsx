@@ -26,6 +26,13 @@ const Login = () => {
 
     // standard login only - no oauth
 
+    // Google login handler
+    const handleGoogleLogin = () => {
+        // direct browser to backend Google auth route (use configured server URL)
+        const server = import.meta.env.VITE_SERVER_URL || 'http://localhost:5000';
+        window.open(`${server.replace(/\/+$/,'')}/api/auth/google`, "_self");
+    };
+
     return (
         <div className="auth-container">
             <div className="auth-card">
@@ -57,6 +64,18 @@ const Login = () => {
                     <button type="submit" className="btn-primary full-width">Sign In</button>
                 </form>
 
+                {/* --- GOOGLE BUTTON UI START --- */}
+                <div style={{ margin: '20px 0', textAlign: 'center' }}>
+                    <p>OR</p>
+                    <button 
+                        onClick={handleGoogleLogin}
+                        className="btn-secondary full-width"
+                        style={{ backgroundColor: '#DB4437', color: 'white', border: 'none' }}
+                    >
+                        Sign in with Google
+                    </button>
+                </div>
+                {/* --- GOOGLE BUTTON UI END --- */}
 
                 <div className="auth-footer">
                     Don't have an account? <Link to="/register">Register</Link>

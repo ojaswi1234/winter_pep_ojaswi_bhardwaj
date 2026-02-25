@@ -7,6 +7,7 @@ import Room from './pages/Room';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import { AuthProvider } from './context/AuthContext';
+import LoginSuccess from './pages/LoginSucess';
 import './App.css';
 
 function App() {
@@ -19,6 +20,7 @@ function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/room/:roomId" element={<Room />} />
+            <Route path="/auth/success" element={<LoginSuccess />} />
         </Routes>
         </Router>
     </AuthProvider>

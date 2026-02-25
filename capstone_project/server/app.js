@@ -29,6 +29,11 @@ app.use(express.urlencoded({ extended: true }));
 
 // Routes
 const authRoutes = require('./routes/authRoutes');
+
+// passport initialization (strategies already required by authRoutes)
+const passport = require('passport');
+app.use(passport.initialize());
+
 app.use('/api/auth', authRoutes);
 
 // app.use('/api/auth', require('./routes/authRoutes'));
