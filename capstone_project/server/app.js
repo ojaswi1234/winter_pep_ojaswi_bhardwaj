@@ -16,6 +16,9 @@ connectDB();
 const app = express();
 const server = http.createServer(app);
 
+// Passport (for social auth)
+const passport = require('passport');
+require('./config/passport')(passport);
 // Middleware
 app.use(cors({
     origin: process.env.CLIENT_URL || "http://localhost:5173",
@@ -25,6 +28,8 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Routes
+app.use(passport.initialize());
+
 const authRoutes = require('./routes/authRoutes');
 app.use('/api/auth', authRoutes);
 
