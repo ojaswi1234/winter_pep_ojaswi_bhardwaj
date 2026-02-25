@@ -1,7 +1,13 @@
 import axios from 'axios';
 
+// Build base URL from env var; always point at the `/api` prefix used by the server.
+const rawServerUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:5000';
+const baseURL = rawServerUrl.endsWith('/api')
+    ? rawServerUrl
+    : rawServerUrl + '/api';
+
 const api = axios.create({
-    baseURL: import.meta.env.VITE_SERVER_URL || 'http://localhost:5000/api',
+    baseURL,
     headers: {
         'Content-Type': 'application/json'
     }

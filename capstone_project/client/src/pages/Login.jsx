@@ -2,7 +2,7 @@ import React, { useState, useContext } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import '../App.css'; // Ensure we use the main CSS or create a localized one
+import '../App.css'; 
 
 const Login = () => {
     const [formData, setFormData] = useState({ email: '', password: '' });
@@ -23,6 +23,8 @@ const Login = () => {
             toast.error(err.response?.data?.msg || "Login Failed");
         }
     };
+
+    // standard login only - no oauth
 
     return (
         <div className="auth-container">
@@ -54,6 +56,8 @@ const Login = () => {
                     </div>
                     <button type="submit" className="btn-primary full-width">Sign In</button>
                 </form>
+
+
                 <div className="auth-footer">
                     Don't have an account? <Link to="/register">Register</Link>
                 </div>

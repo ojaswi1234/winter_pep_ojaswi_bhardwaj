@@ -1,7 +1,9 @@
 import { io } from 'socket.io-client';
 
 // For development, assume backend runs on port 5000
-const URL = import.meta.env.VITE_SERVER_URL || 'http://localhost:5000';
+const rawServerUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:5000';
+// socket.io uses the bare host (no /api) so strip any trailing `/api` if present
+const URL = rawServerUrl.endsWith('/api') ? rawServerUrl.slice(0, -4) : rawServerUrl;
 
 export const socket = io(URL, {
   autoConnect: false,

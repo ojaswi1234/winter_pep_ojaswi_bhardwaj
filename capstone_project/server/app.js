@@ -16,20 +16,18 @@ connectDB();
 const app = express();
 const server = http.createServer(app);
 
-// Passport (for social auth)
-const passport = require('passport');
-require('./config/passport')(passport);
 // Middleware
+// make sure CLIENT_URL doesn't accidentally include a trailing slash; CORS needs exact match
+const rawClientUrl = process.env.CLIENT_URL || "http://localhost:5173";
+const normalizedClientUrl = rawClientUrl.endsWith('/') ? rawClientUrl.slice(0, -1) : rawClientUrl;
 app.use(cors({
-    origin: process.env.CLIENT_URL || "http://localhost:5173",
+    origin: normalizedClientUrl,
     methods: ["GET", "POST"]
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Routes
-app.use(passport.initialize());
-
 const authRoutes = require('./routes/authRoutes');
 app.use('/api/auth', authRoutes);
 
