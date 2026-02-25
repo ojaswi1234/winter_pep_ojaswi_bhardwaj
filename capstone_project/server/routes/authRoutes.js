@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { registerUser, loginUser, getUser } = require('../controllers/authController');
+const { registerUser, loginUser, getUser, logoutUser } = require('../controllers/authController');
 const auth = require('../middleware/auth');
 
 // ensure passport strategies are configured
@@ -21,6 +21,11 @@ router.post('/login', loginUser);
 // @desc    Get user data
 // @access  Private
 router.get('/user', auth, getUser);
+
+// @route   POST api/auth/logout
+// @desc    Logout user (client should discard token)
+// @access  Private
+router.post('/logout', auth, logoutUser);
 
 // --- Google OAuth routes ---
 // @route   GET api/auth/google

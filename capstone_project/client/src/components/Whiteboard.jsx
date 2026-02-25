@@ -1,288 +1,182 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { socket } from '../utils/socket';
+import React, { useRef, useEffect, useState } from 'react';
+import { toast } from 'react-toastify';
+import '../App.css';
 
-// Throttle function to limit emit frequency
-const throttle = (func, delay) => {
-  let lastCall = 0;
-  return (...args) => {
-    const now = new Date().getTime();
-    if (now - lastCall < delay) {
-      return;
-    }
-    lastCall = now;
-    return func(...args);
-  };
-};
-
-const Whiteboard = ({ tool, color, lineWidth, roomId, pageId = 0, username, clearVersion = 0 }) => {
-    // Clear canvas when clearVersion changes (local clear fallback)
+const Whiteboard = ({ 
+    tool, 
+    color, 
+    lineWidth, 
+    roomId, 
+    pageId, 
+    username, 
+    socket,
+    clearVersion 
+}) => {
+    const canvasRef = useRef(null);
+    const [isDrawing, setIsDrawing] = useState(false);
+    
+    // --- CANVAS SETUP ---
     useEffect(() => {
-      const canvas = canvasRef.current;
-      if (canvas) {
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext('2d');
+        
+        // Use ResizeObserver for responsive canvas
+        const resizeCanvas = () => {
+            const parent = canvas.parentElement;
+            if (parent) {
+                // Save current image
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                
+                canvas.width = parent.clientWidth;
+                canvas.height = parent.clientHeight; // or fixed height like 800
+                
+                // Draw grid pattern for Pro look
+                drawGrid(ctx, canvas.width, canvas.height);
+                
+                // Restore image (simplified, real resize handling is complex)
+                ctx.putImageData(imageData, 0, 0);
+                
+                ctx.lineCap = 'round';
+                ctx.strokeStyle = color;
+                ctx.lineWidth = lineWidth;
+            }
+        };
+
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+        
+        // Initial Grid Draw
+        drawGrid(ctx, canvas.width, canvas.height);
+
+        // Listen for remote drawing events
+        const handleDraw = (data) => {
+            if (data.roomId === roomId && data.pageId === pageId) {
+                drawOnCanvas(data.x, data.y, data.prevX, data.prevY, data.color, data.width, data.tool);
+            }
+        };
+
+        // Listen for clear events
+        const handleClear = (data) => {
+            if (data.roomId === roomId && data.pageId === pageId) {
+                clearCanvas();
+            }
+        };
+
+        socket.on('draw', handleDraw);
+        socket.on('clear-board', handleClear);
+
+        return () => {
+            window.removeEventListener('resize', resizeCanvas);
+            socket.off('draw', handleDraw);
+            socket.off('clear-board', handleClear);
+        };
+    }, [roomId, pageId]); // Re-run if page/room changes
+
+    // Update context properties when props change
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext('2d');
+        ctx.strokeStyle = color;
+        ctx.lineWidth = lineWidth;
+    }, [color, lineWidth]);
+
+    // Handle External Clear Trigger
+    useEffect(() => {
+        if (clearVersion > 0) {
+            clearCanvas();
+        }
+    }, [clearVersion]);
+
+    // --- DRAWING LOGIC ---
+    const drawGrid = (ctx, width, height) => {
+        // Professional dot grid
+        const gridSize = 20;
+        ctx.fillStyle = '#e2e8f0'; // Subtle grey dots
+        for (let x = 0; x < width; x += gridSize) {
+            for (let y = 0; y < height; y += gridSize) {
+                ctx.fillRect(x, y, 1, 1);
+            }
+        }
+    };
+
+    const drawOnCanvas = (x, y, prevX, prevY, strokeColor, strokeWidth, currentTool) => {
+        const ctx = canvasRef.current.getContext('2d');
+        ctx.beginPath();
+        ctx.strokeStyle = strokeColor;
+        ctx.lineWidth = strokeWidth;
+        
+        if (currentTool === 'eraser') {
+            ctx.globalCompositeOperation = 'destination-out';
+            ctx.lineWidth = strokeWidth * 2; // Eraser slightly bigger
+        } else {
+            ctx.globalCompositeOperation = 'source-over';
+        }
+
+        ctx.moveTo(prevX, prevY);
+        ctx.lineTo(x, y);
+        ctx.stroke();
+        ctx.closePath();
+    };
+
+    const clearCanvas = () => {
+        const canvas = canvasRef.current;
         const ctx = canvas.getContext('2d');
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-      }
-    }, [clearVersion]);
-  const canvasRef = useRef(null);
-  const [isDrawing, setIsDrawing] = useState(false);
-  const lastPos = useRef({ x: 0, y: 0 });
-  const [remoteCursors, setRemoteCursors] = useState({});
-  const throttledCursorEmit = useRef(null);
-
-  const getPos = (e) => {
-    const rect = canvasRef.current.getBoundingClientRect();
-    return {
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top
+        drawGrid(ctx, canvas.width, canvas.height); // Redraw grid after clear
     };
-  };
 
-  const drawOnCanvas = useCallback((data, isLocal = true) => {
-    const { x0, y0, x1, y1, color, width, tool } = data;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
+    const startDrawing = ({ nativeEvent }) => {
+        const { offsetX, offsetY } = nativeEvent;
+        setIsDrawing(true);
+        canvasRef.current.prevX = offsetX;
+        canvasRef.current.prevY = offsetY;
+    };
 
-    ctx.beginPath();
-    ctx.moveTo(x0, y0);
-    ctx.lineTo(x1, y1);
-    
-    // Set style properties based on tool
-    if (tool === 'eraser') {
-      ctx.globalCompositeOperation = 'destination-out';
-      ctx.lineWidth = width; // Eraser often larger
-    } else {
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.strokeStyle = color;
-      ctx.lineWidth = width;
-    }
-    
-    ctx.stroke();
-    ctx.closePath(); // Important for performance usually
+    const draw = ({ nativeEvent }) => {
+        if (!isDrawing) return;
+        const { offsetX, offsetY } = nativeEvent;
+        const { prevX, prevY } = canvasRef.current;
 
-    if (isLocal) {
-        // Emit only if it's a local drawing action
+        // Draw locally
+        drawOnCanvas(offsetX, offsetY, prevX, prevY, color, lineWidth, tool);
+
+        // Emit to server
         socket.emit('draw', {
             roomId,
             pageId,
-            x0, y0, x1, y1,
+            x: offsetX,
+            y: offsetY,
+            prevX,
+            prevY,
             color,
-            width,
+            width: lineWidth,
             tool
         });
-    }
-  }, [roomId, pageId]);
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    
-    const ctx = canvas.getContext('2d');
-
-    // Handle window resize
-    const handleResize = () => {
-      // Create a temp canvas to save current drawing
-      const tempCanvas = document.createElement('canvas');
-      // eslint-disable-next-line react-hooks/immutability
-      tempCanvas.width = canvas.width;
-      tempCanvas.height = canvas.height;
-      const tempCtx = tempCanvas.getContext('2d');
-      tempCtx.drawImage(canvas, 0, 0);
-
-      // Resize to parent container size
-      const parent = canvas.parentElement;
-      if (parent && parent.clientWidth > 0 && parent.clientHeight > 0) {
-        canvas.width = parent.clientWidth;
-        canvas.height = parent.clientHeight;
-      } else {
-        // Fallback dimensions
-        canvas.width = 800;
-        canvas.height = 600;
-      }
-
-      // Restore drawing
-      ctx.drawImage(tempCanvas, 0, 0);
-      
-      // Reset context properties after resize
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
+        canvasRef.current.prevX = offsetX;
+        canvasRef.current.prevY = offsetY;
     };
 
-    handleResize(); // Initial size
-    window.addEventListener('resize', handleResize);
-
-    // Socket event listeners for remote drawing
-    const handleRemoteDraw = (data) => {
-      if (data.pageId === pageId) {
-        drawOnCanvas(data, false);
-      }
-    };
-    
-    const handleClear = (data) => {
-      if (data.pageId === pageId) {
-        const cvs = canvasRef.current;
-        if (cvs) {
-          const context = cvs.getContext('2d');
-          context.clearRect(0, 0, cvs.width, cvs.height);
-        }
-      }
+    const stopDrawing = () => {
+        setIsDrawing(false);
     };
 
-    // Socket event listeners for cursor tracking
-    const handleCursorMove = (data) => {
-      if (data.pageId === pageId) {
-        setRemoteCursors(prev => ({
-          ...prev,
-          [data.userId]: {
-            x: data.x,
-            y: data.y,
-            username: data.username,
-            color: data.color,
-            lastUpdate: Date.now()
-          }
-        }));
-      }
-    };
-
-    const handleCursorLeave = (data) => {
-      if (data.pageId === pageId) {
-        setRemoteCursors(prev => {
-          const newCursors = { ...prev };
-          delete newCursors[data.userId];
-          return newCursors;
-        });
-      }
-    };
-
-    const handleUserLeft = (userId) => {
-      setRemoteCursors(prev => {
-        const newCursors = { ...prev };
-        delete newCursors[userId];
-        return newCursors;
-      });
-    };
-
-    // Register socket listeners
-    socket.on('draw', handleRemoteDraw);
-    socket.on('clear', handleClear);
-    socket.on('cursor-move', handleCursorMove);
-    socket.on('cursor-leave', handleCursorLeave);
-    socket.on('user-left', handleUserLeft);
-
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      socket.off('draw', handleRemoteDraw);
-      socket.off('clear', handleClear);
-      socket.off('cursor-move', handleCursorMove);
-      socket.off('cursor-leave', handleCursorLeave);
-      socket.off('user-left', handleUserLeft);
-    };
-  }, [pageId, drawOnCanvas]);
-
-  const startDrawing = (e) => {
-    setIsDrawing(true);
-    const pos = getPos(e);
-    lastPos.current = pos;
-  };
-
-  // Create throttled cursor emit function
-  useEffect(() => {
-    throttledCursorEmit.current = throttle((data) => {
-      if (socket.connected) {
-        socket.emit('cursor-move', data);
-      }
-    }, 50); // Emit at most every 50ms (20 times per second)
-  }, []);
-
-  const handleMouseMove = (e) => {
-    const currentPos = getPos(e);
-    
-    // Emit cursor position for ghost cursor (throttled)
-    if (throttledCursorEmit.current && roomId && username) {
-      throttledCursorEmit.current({
-        roomId,
-        pageId,
-        x: currentPos.x,
-        y: currentPos.y,
-        username,
-        color
-      });
-    }
-
-    // Draw if currently drawing
-    if (isDrawing) {
-      drawOnCanvas({
-        x0: lastPos.current.x,
-        y0: lastPos.current.y,
-        x1: currentPos.x,
-        y1: currentPos.y,
-        color,
-        width: lineWidth,
-        tool
-      }, true);
-
-      lastPos.current = currentPos;
-    }
-  };
-
-  const stopDrawing = () => {
-    setIsDrawing(false);
-  };
-
-  const handleMouseLeave = () => {
-    setIsDrawing(false);
-    // Remove cursor from remote view when leaving canvas
-    if (socket.connected && roomId) {
-      socket.emit('cursor-leave', { roomId, pageId });
-    }
-  };
-
-  return (
-    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-      <canvas
-        ref={canvasRef}
-        onMouseDown={startDrawing}
-        onMouseMove={handleMouseMove}
-        onMouseUp={stopDrawing}
-        onMouseLeave={handleMouseLeave}
-        className="whiteboard-canvas"
-        style={{ cursor: tool === 'pencil' ? 'crosshair' : 'cell' }}
-      />
-      {/* Render remote cursors */}
-      {Object.entries(remoteCursors).map(([userId, cursor]) => (
-        <div
-          key={userId}
-          className="ghost-cursor"
-          style={{
-            position: 'absolute',
-            left: cursor.x,
-            top: cursor.y,
-            pointerEvents: 'none',
-            transform: 'translate(-50%, -50%)',
-            zIndex: 1000
-          }}
-        >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill={cursor.color || '#000'}>
-            <path d="M5 3l14 9-6 1-2 6-6-16z" />
-          </svg>
-          <div
-            className="cursor-label"
-            style={{
-              backgroundColor: cursor.color || '#000',
-              color: 'white',
-              padding: '2px 6px',
-              borderRadius: '4px',
-              fontSize: '12px',
-              marginTop: '4px',
-              whiteSpace: 'nowrap'
+    return (
+        <canvas
+            ref={canvasRef}
+            onMouseDown={startDrawing}
+            onMouseMove={draw}
+            onMouseUp={stopDrawing}
+            onMouseLeave={stopDrawing}
+            style={{ 
+                display: 'block', 
+                width: '100%', 
+                height: '800px', // Default height
+                cursor: tool === 'pencil' ? 'crosshair' : 'cell',
+                touchAction: 'none'
             }}
-          >
-            {cursor.username}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
+        />
+    );
 };
 
 export default Whiteboard;

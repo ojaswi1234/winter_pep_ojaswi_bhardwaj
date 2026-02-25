@@ -73,3 +73,14 @@ exports.getUser = async (req, res) => {
         res.status(500).send('Server error');
     }
 };
+
+// Logout (Protected) – stateless JWT, but endpoint exists for symmetry
+exports.logoutUser = async (req, res) => {
+    try {
+        // Nothing to invalidate for JWT; client-side token removal is primary
+        res.json({ msg: 'Logged out' });
+    } catch (err) {
+        console.error(err.message);
+        res.status(500).send('Server error');
+    }
+};

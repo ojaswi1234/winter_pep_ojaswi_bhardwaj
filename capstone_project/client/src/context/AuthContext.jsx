@@ -37,7 +37,14 @@ export const AuthProvider = ({ children }) => {
         setUser(res.data.user);
     };
 
-    const logout = () => {
+    const logout = async () => {
+        // Inform server (optional) then clear local data
+        try {
+            await api.post('/auth/logout');
+        } catch (err) {
+            // network failure is non‑fatal for stateless JWT
+            console.warn('Logout request failed', err);
+        }
         localStorage.removeItem('token');
         setUser(null);
     };

@@ -8,7 +8,6 @@ const Login = () => {
     const [formData, setFormData] = useState({ email: '', password: '' });
     const { login } = useContext(AuthContext);
     const navigate = useNavigate();
-
     const { email, password } = formData;
 
     const onChange = e => setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -24,20 +23,20 @@ const Login = () => {
         }
     };
 
-    // standard login only - no oauth
-
-    // Google login handler
     const handleGoogleLogin = () => {
-        // direct browser to backend Google auth route (use configured server URL)
         const server = import.meta.env.VITE_SERVER_URL || 'http://localhost:5000';
         window.open(`${server.replace(/\/+$/,'')}/api/auth/google`, "_self");
     };
 
     return (
         <div className="auth-container">
-            <div className="auth-card">
-                <h2>Welcome Back</h2>
-                <p>Sign in to continue to your whiteboard</p>
+            <div className="glass-panel auth-card">
+                <div style={{ marginBottom: '30px' }}>
+                    <Link to="/" className="logo" style={{ fontSize: '1.5rem', textDecoration:'none' }}>Collab<span>Board</span>.</Link>
+                </div>
+                <h2 style={{ fontSize: '1.8rem', marginBottom: '10px' }}>Welcome Back</h2>
+                <p style={{ color: 'var(--text-muted)', marginBottom: '30px' }}>Sign in to access your dashboard</p>
+                
                 <form onSubmit={onSubmit}>
                     <div className="form-group">
                         <label>Email Address</label>
@@ -47,7 +46,7 @@ const Login = () => {
                             value={email} 
                             onChange={onChange} 
                             required 
-                            placeholder="user@example.com"
+                            placeholder="name@company.com"
                         />
                     </div>
                     <div className="form-group">
@@ -61,24 +60,25 @@ const Login = () => {
                             placeholder="••••••••"
                         />
                     </div>
-                    <button type="submit" className="btn-primary full-width">Sign In</button>
+                    <button type="submit" className="btn-primary" style={{ width: '100%', marginTop: '10px' }}>Sign In</button>
                 </form>
 
-                {/* --- GOOGLE BUTTON UI START --- */}
-                <div style={{ margin: '20px 0', textAlign: 'center' }}>
-                    <p>OR</p>
-                    <button 
-                        onClick={handleGoogleLogin}
-                        className="btn-secondary full-width"
-                        style={{ backgroundColor: '#DB4437', color: 'white', border: 'none' }}
-                    >
-                        Sign in with Google
-                    </button>
+                <div style={{ margin: '24px 0', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{ height: '1px', background: 'var(--glass-border)', flex: 1 }}></div>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>OR</span>
+                    <div style={{ height: '1px', background: 'var(--glass-border)', flex: 1 }}></div>
                 </div>
-                {/* --- GOOGLE BUTTON UI END --- */}
 
-                <div className="auth-footer">
-                    Don't have an account? <Link to="/register">Register</Link>
+                <button 
+                    onClick={handleGoogleLogin}
+                    className="btn-secondary"
+                    style={{ width: '100%', borderColor: '#DB4437', color: '#fff', background: '#DB4437' }}
+                >
+                    Sign in with Google
+                </button>
+
+                <div style={{ marginTop: '24px', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
+                    Don't have an account? <Link to="/register" style={{ fontWeight: 'bold' }}>Create Account</Link>
                 </div>
             </div>
         </div>
