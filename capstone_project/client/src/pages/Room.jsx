@@ -65,7 +65,7 @@ const Room = () => {
             } else if (data.status === 'rejected') setStatus('denied');
             else { toast.error(data.message); navigate('/'); }
         });
-        socket.on('room-users', (list) => setUsers(list);
+        socket.on('room-users', (list) => setUsers(list));
         socket.on('room-closed', () => { toast.warning("Host closed room"); navigate('/'); });
 
         return () => {
