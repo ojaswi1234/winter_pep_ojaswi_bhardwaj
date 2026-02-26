@@ -3,7 +3,6 @@ const http = require('http');
 const { Server } = require('socket.io');
 const connectDB = require('./config/db');
 const cors = require('cors');
-const os = require('os'); // NEW: Required to get system IP
 require('dotenv').config();
 
 const app = express();
@@ -11,65 +10,45 @@ const server = http.createServer(app);
 
 app.use(cors());
 app.use(express.json());
-
 connectDB();
 
 app.use('/api/auth', require('./routes/authRoutes'));
 
-// --- NEW: Endpoint to auto-extract Local Network IP ---
-app.get('/api/local-ip', (req, res) => {
-    const interfaces = os.networkInterfaces();
-    let localIp = 'localhost';
-    
-    for (const name of Object.keys(interfaces)) {
-        for (const iface of interfaces[name]) {
-            // Skip internal (localhost) and non-IPv4 addresses
-            if (iface.family === 'IPv4' && !iface.internal) {
-                localIp = iface.address;
-            }
-        }
-    }
-    res.json({ ip: localIp });
-});
-
-// 1. INCREASE BUFFER FOR FILE SHARING (100MB)
 const io = new Server(server, {
-    cors: { origin: "*", methods: ["GET", "POST"] },
-    maxHttpBufferSize: 1e8 
+    cors: { origin: "*", methods: ["GET", "POST"] }
 });
 
-// Room State
-// Structure: { roomId: { hostId: string, users: [], history: [], redoStack: [] } }
 const rooms = {}; 
 
 io.on('connection', (socket) => {
     
-    // --- ROOM LOGIC (Preserved) ---
+    // --- GLOBAL INVITE SYSTEM ---
+    // Users register their username globally when on the dashboard
+    socket.on('register-global', (username) => {
+        socket.join(`user:${username}`);
+        console.log(`User ${username} registered for global invites.`);
+    });
+
+    socket.on('send-direct-invite', ({ targetUsername, hostUsername, roomId, type }) => {
+        // Send alert directly to the target user's private notification room
+        io.to(`user:${targetUsername}`).emit('receive-invite', {
+            hostUsername,
+            roomId,
+            type
+        });
+    });
+
+    // --- ROOM MANAGEMENT ---
     socket.on('create-room', ({ roomId, username }) => {
         rooms[roomId] = {
             hostId: socket.id,
-            users: [{ id: socket.id, username }],
-            history: [],    // For Undo
-            redoStack: []   // For Redo
+            users: [{ id: socket.id, username }] 
         };
         socket.join(roomId);
         socket.emit('room-created', { success: true, isHost: true });
         io.to(roomId).emit('room-users', rooms[roomId].users);
     });
-    socket.on('register-global', (username) => {
-        socket.join(`user:${username}`); // Create a personal notification room
-        console.log(`${username} is online and ready to receive invites.`);
-    });
 
-    // 2. DIRECT INVITE RELAY
-    socket.on('send-direct-invite', ({ targetUsername, hostUsername, roomId, type }) => {
-        // Send an alert directly to the target user's personal room
-        io.to(`user:${targetUsername}`).emit('receive-invite', {
-            hostUsername,
-            roomId,
-            type // 'room' or 'file'
-        });
-    });
     socket.on('request-join', ({ roomId, username }) => {
         const room = rooms[roomId];
         if (!room) {
@@ -81,9 +60,9 @@ io.on('connection', (socket) => {
 
     socket.on('respond-join', ({ socketId, action, roomId }) => {
         if (action === 'accept') {
-            const participant = io.sockets.sockets.get(socketId);
-            if (participant) {
-                participant.join(roomId);
+            const socketToJoin = io.sockets.sockets.get(socketId);
+            if (socketToJoin) {
+                socketToJoin.join(roomId);
                 io.to(socketId).emit('join-status', { status: 'accepted', roomId });
             }
         } else {
@@ -93,98 +72,24 @@ io.on('connection', (socket) => {
 
     socket.on('join-confirmed', ({ roomId, username }) => {
         if(rooms[roomId]) {
-             if (!rooms[roomId].users.find(u => u.id === socket.id)) {
+             if (!rooms[roomId].users.some(u => u.id === socket.id)) {
                  rooms[roomId].users.push({ id: socket.id, username });
              }
              io.to(roomId).emit('room-users', rooms[roomId].users);
              io.to(roomId).emit('user-joined', { username, id: socket.id });
-             
-             // Send existing board history to new user
-             socket.emit('board-history', rooms[roomId].history);
         }
     });
 
-    // --- DRAWING & HISTORY (Undo/Redo Preserved) ---
+    // --- INTERACTIVE FEATURES ---
     socket.on('draw', (data) => socket.to(data.roomId).emit('draw', data));
-
-    socket.on('commit-stroke', ({ roomId, stroke }) => {
-        if (rooms[roomId]) {
-            rooms[roomId].history.push(stroke);
-            rooms[roomId].redoStack = []; 
-        }
+    socket.on('clear-board', (data) => io.to(data.roomId).emit('clear-board', data));
+    socket.on('send-message', (data) => io.to(data.roomId).emit('receive-message', data));
+    
+    // Ghost Cursors
+    socket.on('mouse-move', (data) => {
+        socket.to(data.roomId).emit('mouse-move', data);
     });
 
-    socket.on('undo', ({ roomId }) => {
-        if (rooms[roomId] && rooms[roomId].history.length > 0) {
-            const lastAction = rooms[roomId].history.pop();
-            rooms[roomId].redoStack.push(lastAction);
-            io.to(roomId).emit('board-history', rooms[roomId].history); 
-        }
-    });
-
-    socket.on('redo', ({ roomId }) => {
-        if (rooms[roomId] && rooms[roomId].redoStack.length > 0) {
-            const action = rooms[roomId].redoStack.pop();
-            rooms[roomId].history.push(action);
-            io.to(roomId).emit('board-history', rooms[roomId].history);
-        }
-    });
-
-    socket.on('clear-board', (data) => {
-        if (rooms[data.roomId]) {
-            rooms[data.roomId].history = [];
-            rooms[data.roomId].redoStack = [];
-        }
-        io.to(data.roomId).emit('clear-board', data);
-    });
-
-    // --- MOBILE CONTROLLER (Preserved) ---
-    socket.on('mobile-join', ({ targetSocketId }) => {
-        console.log(`Mobile controller connected for ${targetSocketId}`);
-    });
-
-    socket.on('mobile-command', ({ targetSocketId, command, value }) => {
-        io.to(targetSocketId).emit('mobile-command-received', { command, value });
-    });
-
-    // --- NEW ADVANCED FEATURES ---
-
-    // 1. File Sharing
-    socket.on('upload-file', (data) => {
-        io.to(data.roomId).emit('receive-file', data);
-    });
-
-    // 2. WebRTC Signaling (Screen Share)
-    socket.on('start-screen-share', ({ roomId, userId }) => {
-        socket.to(roomId).emit('user-started-sharing', { userId });
-    });
-
-    socket.on('stop-screen-share', ({ roomId }) => {
-        socket.to(roomId).emit('user-stopped-sharing');
-    });
-
-    socket.on('webrtc-offer', (data) => {
-        socket.to(data.target).emit('webrtc-offer', {
-            sdp: data.sdp,
-            callerId: socket.id
-        });
-    });
-
-    socket.on('webrtc-answer', (data) => {
-        socket.to(data.target).emit('webrtc-answer', {
-            sdp: data.sdp,
-            responderId: socket.id
-        });
-    });
-
-    socket.on('webrtc-ice-candidate', (data) => {
-        socket.to(data.target).emit('webrtc-ice-candidate', {
-            candidate: data.candidate,
-            senderId: socket.id
-        });
-    });
-
-    // --- DISCONNECT ---
     socket.on('disconnect', () => {
         for (const roomId in rooms) {
             const room = rooms[roomId];
@@ -192,7 +97,7 @@ io.on('connection', (socket) => {
             if (userIndex !== -1) {
                 const user = room.users[userIndex];
                 room.users.splice(userIndex, 1);
-                io.to(roomId).emit('user-left', user.id);
+                io.to(roomId).emit('user-left', { id: user.id, username: user.username });
                 io.to(roomId).emit('room-users', room.users);
                 if (socket.id === room.hostId) {
                     delete rooms[roomId]; 
@@ -201,15 +106,6 @@ io.on('connection', (socket) => {
                 break;
             }
         }
-    });
-    // --- MOBILE CONTROLLER ---
-    socket.on('mobile-join', ({ targetSocketId }) => {
-        console.log(`Mobile controller connected for ${targetSocketId}`);
-    });
-
-    socket.on('mobile-command', ({ targetSocketId, command, value }) => {
-        // Relays the command from phone directly to the Desktop
-        io.to(targetSocketId).emit('mobile-command-received', { command, value });
     });
 });
 
