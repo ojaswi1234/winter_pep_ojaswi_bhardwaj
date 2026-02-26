@@ -37,7 +37,7 @@ io.on('connection', (socket) => {
     socket.on('create-room', ({ roomId, username }) => {
         rooms[roomId] = {
             hostId: socket.id,
-            users: [{ id: socket.id, username, isHost: true }], // Added isHost
+            users: [{ id: socket.id, username, isHost: true }],
             history: [],
             redoStack: []
         };
@@ -67,7 +67,7 @@ io.on('connection', (socket) => {
     socket.on('join-confirmed', ({ roomId, username }) => {
         if(rooms[roomId]) {
              if (!rooms[roomId].users.some(u => u.id === socket.id)) {
-                 rooms[roomId].users.push({ id: socket.id, username, isHost: false }); // Added isHost
+                 rooms[roomId].users.push({ id: socket.id, username, isHost: false });
              }
              io.to(roomId).emit('room-users', rooms[roomId].users);
              io.to(roomId).emit('user-joined', { username, id: socket.id });
@@ -87,16 +87,14 @@ io.on('connection', (socket) => {
         io.to(targetId).emit('feature-permission-response', { action, type });
     });
 
-    // --- INTERACTIVE FEATURES (Drawing, Undo/Redo) ---
+    // --- INTERACTIVE FEATURES ---
     socket.on('draw', (data) => socket.to(data.roomId).emit('draw', data));
-    
     socket.on('commit-stroke', ({ roomId, stroke }) => {
         if (rooms[roomId]) {
             rooms[roomId].history.push(stroke);
             rooms[roomId].redoStack = [];
         }
     });
-
     socket.on('undo', ({ roomId }) => {
         if (rooms[roomId] && rooms[roomId].history.length > 0) {
             const action = rooms[roomId].history.pop();
@@ -104,7 +102,6 @@ io.on('connection', (socket) => {
             io.to(roomId).emit('board-history', rooms[roomId].history);
         }
     });
-
     socket.on('redo', ({ roomId }) => {
         if (rooms[roomId] && rooms[roomId].redoStack.length > 0) {
             const action = rooms[roomId].redoStack.pop();
@@ -113,15 +110,21 @@ io.on('connection', (socket) => {
         }
     });
 
-    // --- ADVANCED FEATURES (Files, Screen Share, Signaling) ---
+    // --- ADVANCED FEATURES ---
     socket.on('upload-file', (data) => io.to(data.roomId).emit('receive-file', data));
-
     socket.on('start-screen-share', ({ roomId, userId }) => socket.to(roomId).emit('user-started-sharing', { userId }));
     socket.on('stop-screen-share', ({ roomId }) => socket.to(roomId).emit('user-stopped-sharing'));
 
+    // WEBRTC SIGNALING (Updated to pass 'type' forward)
     socket.on('webrtc-offer', (data) => socket.to(data.target).emit('webrtc-offer', { sdp: data.sdp, callerId: socket.id }));
     socket.on('webrtc-answer', (data) => socket.to(data.target).emit('webrtc-answer', { sdp: data.sdp, responderId: socket.id }));
-    socket.on('webrtc-ice-candidate', (data) => socket.to(data.target).emit('webrtc-ice-candidate', { candidate: data.candidate, senderId: socket.id }));
+    socket.on('webrtc-ice-candidate', (data) => {
+        socket.to(data.target).emit('webrtc-ice-candidate', { 
+            candidate: data.candidate, 
+            senderId: socket.id,
+            type: data.type // Fix: Routes data to correct connection type
+        });
+    });
 
     socket.on('mouse-move', (data) => socket.to(data.roomId).emit('mouse-move', data));
     socket.on('send-message', (data) => io.to(data.roomId).emit('receive-message', data));

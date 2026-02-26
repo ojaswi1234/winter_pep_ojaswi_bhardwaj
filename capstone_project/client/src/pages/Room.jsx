@@ -13,31 +13,26 @@ const Room = () => {
     const location = useLocation();
     const navigate = useNavigate();
     
-    // User State
     const [username, setUsername] = useState(location.state?.username || '');
     const [isHost, setIsHost] = useState(location.state?.isHost || false);
     
-    // UI State
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [downloadTrigger, setDownloadTrigger] = useState(0);
     const [isDarkMode, setIsDarkMode] = useState(true);
 
-    // Advanced Feature States
     const [isRecording, setIsRecording] = useState(false);
     const mediaRecorderRef = useRef(null);
     const recordedChunksRef = useRef([]);
 
-    // WebRTC / Screen Share States
+    // WebRTC Fixes
     const [isSharing, setIsSharing] = useState(false);
-    const isSharingRef = useRef(false); // Fix: Sync ref to avoid socket listener resets
     const [remoteStream, setRemoteStream] = useState(null);
-    const screenVideoRef = useRef(null); // Fix: Dedicated ref for the video element
+    const screenVideoRef = useRef(null); 
     const localStreamRef = useRef(null);
     const peerConnectionsRef = useRef({}); 
     const myPeerRef = useRef(null); 
-    const pendingIceCandidates = useRef({}); // Fix: Queue for handling race conditions
+    const pendingIceCandidates = useRef({}); 
 
-    // Logic States
     const [status, setStatus] = useState('initializing'); 
     const [users, setUsers] = useState([]); 
     const [joinRequests, setJoinRequests] = useState([]); 
@@ -49,14 +44,18 @@ const Room = () => {
     const [clearVersion, setClearVersion] = useState(0);
     const [copied, setCopied] = useState(false);
 
-    // Fix: Securely attach the remote stream without interrupting it on re-renders
+    // FIX 1: Explicitly force video element to play when stream is attached
     useEffect(() => {
-        if (screenVideoRef.current && remoteStream) {
-            screenVideoRef.current.srcObject = remoteStream;
+        const videoElement = screenVideoRef.current;
+        if (videoElement && remoteStream) {
+            if (videoElement.srcObject !== remoteStream) {
+                videoElement.srcObject = remoteStream;
+            }
+            // Overcome modern browser autoplay blocks
+            videoElement.play().catch(err => console.error("Video autoplay prevented by browser:", err));
         }
     }, [remoteStream]);
 
-    // Track participants for history
     useEffect(() => {
         if (users.length > 0) {
             const history = JSON.parse(localStorage.getItem('roomHistory') || '[]');
@@ -71,7 +70,6 @@ const Room = () => {
         }
     }, [users, roomId, username]);
 
-    // Connection & Initialization 
     useEffect(() => {
         if (!socket.connected) socket.connect();
 
@@ -88,12 +86,10 @@ const Room = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []); 
 
-    // Theme Management
     useEffect(() => {
         document.body.className = isDarkMode ? '' : 'light-mode';
     }, [isDarkMode]);
 
-    // Socket Listeners
     useEffect(() => {
         const handleRequest = (data) => setJoinRequests(prev => [...prev, data]);
         const handleStatus = (data) => {
@@ -110,6 +106,14 @@ const Room = () => {
         const handleUsers = (list) => setUsers(list);
         const handleClosed = () => { toast.warning("Host closed room"); navigate('/'); };
 
+        // Handle peers leaving cleanly
+        const handleUserLeft = (data) => {
+            if (peerConnectionsRef.current[data.id]) {
+                peerConnectionsRef.current[data.id].close();
+                delete peerConnectionsRef.current[data.id];
+            }
+        };
+
         const handleFeaturePermissionRequest = (data) => setFeatureRequests(prev => [...prev, data]);
         const handleFeaturePermissionResponse = ({ action, type }) => {
             if (action === 'accept') {
@@ -121,38 +125,44 @@ const Room = () => {
             }
         };
 
-        // WEBRTC EVENT HANDLERS
         const handleUserStartedSharing = () => toast.info("Incoming Screen Share...");
-        
         const handleUserStoppedSharing = () => {
             setRemoteStream(null);
             if(myPeerRef.current) { myPeerRef.current.close(); myPeerRef.current = null; }
+            pendingIceCandidates.current['myPeer'] = [];
             toast.info("Screen Share ended.");
         };
 
-        // Fix: WebRTC Receiver
+        // FIX 2: Receiver Logic & Proper STUN setup
         const handleWebRTCOffer = async ({ sdp, callerId }) => {
             try {
-                const peer = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+                if (myPeerRef.current) myPeerRef.current.close();
+                
+                const peer = new RTCPeerConnection({ 
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:global.stun.twilio.com:3478' } // Backup STUN
+                    ] 
+                });
                 myPeerRef.current = peer;
                 
                 peer.onicecandidate = (e) => { 
-                    if (e.candidate) socket.emit('webrtc-ice-candidate', { target: callerId, candidate: e.candidate }); 
+                    if (e.candidate) socket.emit('webrtc-ice-candidate', { target: callerId, candidate: e.candidate, type: 'for-sender' }); 
                 };
                 
                 peer.ontrack = (e) => {
-                    // Safe track assignment
-                    if (e.streams && e.streams[0]) setRemoteStream(e.streams[0]);
-                    else {
-                        const inboundStream = new MediaStream();
-                        inboundStream.addTrack(e.track);
-                        setRemoteStream(inboundStream);
-                    }
+                    setRemoteStream(prev => {
+                        if (e.streams && e.streams.length > 0) return e.streams[0];
+                        // Force React state update by creating a new stream wrapper
+                        const newStream = new MediaStream(prev ? prev.getTracks() : []);
+                        newStream.addTrack(e.track);
+                        return newStream;
+                    });
                 };
                 
                 await peer.setRemoteDescription(new RTCSessionDescription(sdp));
                 
-                // Fix: Apply any queued ICE candidates that arrived early
+                // Flush queued ICE candidates that arrived before Offer
                 if (pendingIceCandidates.current['myPeer']) {
                     for (let c of pendingIceCandidates.current['myPeer']) {
                         await peer.addIceCandidate(new RTCIceCandidate(c)).catch(console.error);
@@ -162,17 +172,14 @@ const Room = () => {
 
                 const answer = await peer.createAnswer();
                 await peer.setLocalDescription(answer);
-                socket.emit('webrtc-answer', { target: callerId, sdp: answer });
+                socket.emit('webrtc-answer', { target: callerId, sdp: peer.localDescription });
             } catch (err) { console.error("Offer Error:", err); }
         };
 
-        // Fix: WebRTC Sender
         const handleWebRTCAnswer = async ({ sdp, responderId }) => {
             const peer = peerConnectionsRef.current[responderId];
             if (peer) {
                 await peer.setRemoteDescription(new RTCSessionDescription(sdp));
-                
-                // Fix: Apply any queued ICE candidates that arrived early
                 if (pendingIceCandidates.current[responderId]) {
                     for (let c of pendingIceCandidates.current[responderId]) {
                         await peer.addIceCandidate(new RTCIceCandidate(c)).catch(console.error);
@@ -182,24 +189,25 @@ const Room = () => {
             }
         };
 
-        // Fix: Queue ICE Candidates if description isn't set yet
-        const handleWebRTCCandidate = async ({ candidate, senderId }) => {
-            const peer = isSharingRef.current ? peerConnectionsRef.current[senderId] : myPeerRef.current;
-            if (peer) {
-                if (peer.remoteDescription) {
-                    try { await peer.addIceCandidate(new RTCIceCandidate(candidate)); } 
-                    catch (e) { console.error("ICE Error:", e); }
-                } else {
-                    const id = isSharingRef.current ? senderId : 'myPeer';
-                    if (!pendingIceCandidates.current[id]) pendingIceCandidates.current[id] = [];
-                    pendingIceCandidates.current[id].push(candidate);
-                }
+        // FIX 3: Target Role Routing
+        const handleWebRTCCandidate = async ({ candidate, senderId, type }) => {
+            const peer = type === 'for-receiver' ? myPeerRef.current : peerConnectionsRef.current[senderId];
+            const queueId = type === 'for-receiver' ? 'myPeer' : senderId;
+
+            if (peer && peer.remoteDescription) {
+                try { await peer.addIceCandidate(new RTCIceCandidate(candidate)); } 
+                catch (e) { console.error("ICE Error:", e); }
+            } else {
+                // Safely queue candidate if connection is not fully formed yet
+                if (!pendingIceCandidates.current[queueId]) pendingIceCandidates.current[queueId] = [];
+                pendingIceCandidates.current[queueId].push(candidate);
             }
         };
 
         socket.on('user-requesting', handleRequest);
         socket.on('join-status', handleStatus);
         socket.on('room-users', handleUsers);
+        socket.on('user-left', handleUserLeft);
         socket.on('room-closed', handleClosed);
         
         socket.on('feature-permission-request', handleFeaturePermissionRequest);
@@ -213,29 +221,22 @@ const Room = () => {
 
         return () => {
             socket.off('user-requesting'); socket.off('join-status');
-            socket.off('room-users'); socket.off('room-closed');
+            socket.off('room-users'); socket.off('user-left'); socket.off('room-closed');
             socket.off('feature-permission-request'); socket.off('feature-permission-response');
             socket.off('user-started-sharing'); socket.off('user-stopped-sharing');
-            socket.off('webrtc-offer'); socket.off('webrtc-answer');
-            socket.off('webrtc-ice-candidate');
+            socket.off('webrtc-offer'); socket.off('webrtc-answer'); socket.off('webrtc-ice-candidate');
         };
-    }, [roomId, username, navigate]); // Notice: isSharing is removed from dependencies to prevent disconnections
+    }, [roomId, username, navigate]);
 
-    // --- SCREEN SHARING LOGIC ---
+    // --- SCREEN SHARING SENDER LOGIC ---
     const startScreenShare = async () => {
         try {
             let stream;
-            try {
-                // Try capturing with audio first
-                stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-            } catch(e) {
-                // Fallback to video only if their system/browser denies system audio sharing
-                stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-            }
+            try { stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true }); } 
+            catch(e) { stream = await navigator.mediaDevices.getDisplayMedia({ video: true }); }
 
             localStreamRef.current = stream;
             setIsSharing(true);
-            isSharingRef.current = true; // Sync ref
             socket.emit('start-screen-share', { roomId, userId: socket.id });
 
             stream.getVideoTracks()[0].onended = stopScreenShare;
@@ -245,17 +246,19 @@ const Room = () => {
 
     const createPeerConnection = async (targetId, stream) => {
         try {
-            const peer = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
+            const peer = new RTCPeerConnection({ 
+                iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:global.stun.twilio.com:3478' }] 
+            });
             peerConnectionsRef.current[targetId] = peer;
             stream.getTracks().forEach(track => peer.addTrack(track, stream));
             
             peer.onicecandidate = (e) => { 
-                if (e.candidate) socket.emit('webrtc-ice-candidate', { target: targetId, candidate: e.candidate }); 
+                if (e.candidate) socket.emit('webrtc-ice-candidate', { target: targetId, candidate: e.candidate, type: 'for-receiver' }); 
             };
             
             const offer = await peer.createOffer();
             await peer.setLocalDescription(offer);
-            socket.emit('webrtc-offer', { target: targetId, sdp: offer });
+            socket.emit('webrtc-offer', { target: targetId, sdp: peer.localDescription });
         } catch (err) { console.error("Create Peer Error:", err); }
     };
 
@@ -265,13 +268,11 @@ const Room = () => {
             localStreamRef.current = null;
         }
         setIsSharing(false);
-        isSharingRef.current = false; // Sync ref
         socket.emit('stop-screen-share', { roomId });
         Object.values(peerConnectionsRef.current).forEach(peer => peer.close());
         peerConnectionsRef.current = {};
     };
 
-    // --- RECORDING LOGIC ---
     const startRecording = async () => {
         try {
             const canvas = document.querySelector('canvas');
@@ -317,7 +318,6 @@ const Room = () => {
         toast.info("Requested recording permission from Host.");
     };
 
-    // --- FILE SHARING LOGIC ---
     const handleFileUpload = (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -330,7 +330,6 @@ const Room = () => {
         reader.readAsDataURL(file);
     };
 
-    // --- ACTIONS ---
     const handlePermission = (socketId, action) => {
         socket.emit('respond-join', { socketId, action, roomId });
         setJoinRequests(prev => prev.filter(req => req.socketId !== socketId));
@@ -356,16 +355,15 @@ const Room = () => {
 
     return (
         <div className="room-container">
-            {/* Screen Share Overlay */}
             {remoteStream && (
                 <div className="screen-share-overlay">
                     <div style={{color:'white', marginBottom:10, fontWeight:'bold'}}>Sharing Screen...</div>
-                    <video className="screen-video" autoPlay playsInline ref={screenVideoRef} />
+                    {/* controls fallback prevents total blackscreen if browser policies block strict autoplay */}
+                    <video className="screen-video" autoPlay playsInline controls ref={screenVideoRef} />
                     <button onClick={() => setRemoteStream(null)} className="btn-danger" style={{marginTop:10}}>Close View</button>
                 </div>
             )}
 
-            {/* Host Popup (Joining) */}
             {isHost && joinRequests.map(req => (
                 <div key={`join-${req.socketId}`} className="glass-panel" style={{ position:'absolute', top:20, left:'50%', transform:'translateX(-50%)', zIndex:200, padding:20, display:'flex', gap:20, alignItems:'center', border:'1px solid var(--primary-yellow)' }}>
                     <span><strong>{req.username}</strong> wants to join</span>
@@ -374,7 +372,6 @@ const Room = () => {
                 </div>
             ))}
 
-            {/* Host Popup (Feature Permissions) */}
             {isHost && featureRequests.map((req, i) => (
                 <div key={`feat-${req.socketId}-${i}`} className="glass-panel" style={{ position:'absolute', top:80 + (i*80), left:'50%', transform:'translateX(-50%)', zIndex:200, padding:20, display:'flex', gap:20, alignItems:'center', border:'1px solid #3B82F6' }}>
                     <span><strong>{req.username}</strong> wants to start {req.type === 'screen-share' ? 'Screen Share' : 'Recording'}</span>
