@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
-import { Copy, Check, Plus, LogOut, PanelLeftClose, PanelLeftOpen, ShieldAlert, X } from 'lucide-react';
+import { Copy, Check, Plus, LogOut, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
 import Whiteboard from '../components/Whiteboard';
 import Toolbar from '../components/Toolbar';
 import Chat from '../components/Chat';
-import {socket} from '../utils/socket'; 
+import socket from '../utils/socket'; 
 import { toast } from 'react-toastify';
 import '../App.css';
 
@@ -21,7 +21,10 @@ const Room = () => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [downloadTrigger, setDownloadTrigger] = useState(0);
     const [isDarkMode, setIsDarkMode] = useState(true);
-    const [showQR, setShowQR] = useState(false); // Mobile Controller QR
+    
+    // Mobile Controller State
+    const [showQR, setShowQR] = useState(false);
+    const [networkIp, setNetworkIp] = useState(window.location.hostname);
 
     // Advanced Feature States
     const [isRecording, setIsRecording] = useState(false);
@@ -53,6 +56,19 @@ const Room = () => {
         // Apply theme
         document.body.className = isDarkMode ? '' : 'light-mode';
 
+        // Auto-fetch local Network IP from backend for Mobile Controller
+        const fetchIp = async () => {
+            try {
+                const apiUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:5000';
+                const res = await fetch(`${apiUrl}/api/local-ip`);
+                const data = await res.json();
+                if (data.ip) setNetworkIp(data.ip);
+            } catch (err) {
+                console.error("Could not fetch network IP", err);
+            }
+        };
+        fetchIp();
+
         if (isHost) {
             socket.emit('create-room', { roomId, username });
             setStatus('joined');
@@ -64,7 +80,7 @@ const Room = () => {
             socket.emit('request-join', { roomId, username: name });
         }
 
-        // --- HANDLERS ---
+        // --- GENERAL HANDLERS ---
         const handleRequest = (data) => setJoinRequests(prev => [...prev, data]);
         
         const handleStatus = (data) => {
@@ -82,7 +98,7 @@ const Room = () => {
         const handleUsers = (list) => setUsers(list);
         const handleClosed = () => { toast.warning("Host closed room"); navigate('/'); };
 
-        // --- MOBILE CONTROLLER ---
+        // --- MOBILE COMMAND HANDLER ---
         const handleMobileCommand = ({ command, value }) => {
             if (command === 'tool') setTool(value);
             if (command === 'color') setColor(value);
@@ -145,6 +161,7 @@ const Room = () => {
             }
         };
 
+        // Listeners
         socket.on('user-requesting', handleRequest);
         socket.on('join-status', handleStatus);
         socket.on('room-users', handleUsers);
@@ -269,7 +286,7 @@ const Room = () => {
         const file = e.target.files[0];
         if (!file) return;
 
-        // Limit to 100MB check logic on client side if needed
+        // Limit check
         if (file.size > 100 * 1024 * 1024) {
             toast.error("File size limit is 100MB");
             return;
@@ -282,10 +299,10 @@ const Room = () => {
                 roomId,
                 username,
                 fileName: file.name,
-                fileData, // Base64
+                fileData, 
                 time: new Date().toLocaleTimeString()
             };
-            socket.emit('upload-file', payload);
+            socket.emit('upload-file', payload); 
             toast.success("File uploaded to chat!");
         };
         reader.readAsDataURL(file);
@@ -311,7 +328,20 @@ const Room = () => {
     if (status === 'requesting') return <div className="full-screen" style={{alignItems:'center', justifyContent:'center'}}><h2>Waiting for Host...</h2></div>;
     if (status === 'denied') return <div className="full-screen" style={{alignItems:'center', justifyContent:'center'}}><h2>Access Denied</h2><button onClick={()=>navigate('/')} className="btn-secondary">Home</button></div>;
 
-    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${window.location.origin}/mobile/${socket.id}`;
+    // Generate Dynamic QR Code URL using auto-extracted IP
+    // Generate Dynamic QR Code URL
+    const port = window.location.port ? `:${window.location.port}` : '';
+    const protocol = window.location.protocol;
+    
+    // SMART ROUTING:
+    // If in Production (Vercel/Netlify), use the real domain name.
+    // If in Development (Localhost), use the extracted Wi-Fi IP so the phone can connect.
+    const isProduction = import.meta.env.PROD;
+    const baseHost = isProduction 
+        ? window.location.hostname 
+        : (networkIp !== 'localhost' ? networkIp : window.location.hostname);
+    
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${protocol}//${baseHost}${isProduction ? '' : port}/mobile/${socket.id}`;
 
     return (
         <div className="room-container">
@@ -341,11 +371,12 @@ const Room = () => {
             {/* Mobile QR Modal */}
             {showQR && (
                 <div style={{position:'absolute', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.8)', zIndex:300, display:'flex', alignItems:'center', justifyContent:'center'}}>
-                    <div className="glass-panel" style={{padding:30, textAlign:'center', position:'relative', background:'var(--bg-panel)'}}>
+                    <div className="glass-panel" style={{padding:40, textAlign:'center', position:'relative', background:'var(--bg-panel)'}}>
                         <button onClick={()=>setShowQR(false)} style={{position:'absolute', top:10, right:10, background:'transparent', border:'none', color:'var(--text-main)', cursor:'pointer'}}><X size={20}/></button>
                         <h3 style={{marginTop:0, color:'var(--primary-yellow)'}}>Mobile Controller</h3>
                         <img src={qrUrl} alt="QR Code" style={{border:'5px solid white', borderRadius:8}} />
                         <p style={{fontSize:'0.8rem', color:'var(--text-muted)', marginTop:15}}>Scan to pair your phone</p>
+                        <div style={{fontSize: '0.65rem', color: 'var(--glass-border)', marginTop: 10}}>IP: {baseHost}</div>
                     </div>
                 </div>
             )}
@@ -369,7 +400,6 @@ const Room = () => {
                         lineWidth={lineWidth} setLineWidth={setLineWidth} 
                         onClear={handleClear}
                         onDownload={handleDownload}
-                        // Feature Props
                         onScreenShare={isSharing ? stopScreenShare : startScreenShare}
                         isSharing={isSharing}
                         onRecord={isRecording ? stopRecording : startRecording}

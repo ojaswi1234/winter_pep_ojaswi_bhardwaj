@@ -3,6 +3,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const connectDB = require('./config/db');
 const cors = require('cors');
+const os = require('os'); // NEW: Required to get system IP
 require('dotenv').config();
 
 const app = express();
@@ -14,6 +15,22 @@ app.use(express.json());
 connectDB();
 
 app.use('/api/auth', require('./routes/authRoutes'));
+
+// --- NEW: Endpoint to auto-extract Local Network IP ---
+app.get('/api/local-ip', (req, res) => {
+    const interfaces = os.networkInterfaces();
+    let localIp = 'localhost';
+    
+    for (const name of Object.keys(interfaces)) {
+        for (const iface of interfaces[name]) {
+            // Skip internal (localhost) and non-IPv4 addresses
+            if (iface.family === 'IPv4' && !iface.internal) {
+                localIp = iface.address;
+            }
+        }
+    }
+    res.json({ ip: localIp });
+});
 
 // 1. INCREASE BUFFER FOR FILE SHARING (100MB)
 const io = new Server(server, {
@@ -171,6 +188,15 @@ io.on('connection', (socket) => {
                 break;
             }
         }
+    });
+    // --- MOBILE CONTROLLER ---
+    socket.on('mobile-join', ({ targetSocketId }) => {
+        console.log(`Mobile controller connected for ${targetSocketId}`);
+    });
+
+    socket.on('mobile-command', ({ targetSocketId, command, value }) => {
+        // Relays the command from phone directly to the Desktop
+        io.to(targetSocketId).emit('mobile-command-received', { command, value });
     });
 });
 
