@@ -56,7 +56,20 @@ io.on('connection', (socket) => {
         socket.emit('room-created', { success: true, isHost: true });
         io.to(roomId).emit('room-users', rooms[roomId].users);
     });
+    socket.on('register-global', (username) => {
+        socket.join(`user:${username}`); // Create a personal notification room
+        console.log(`${username} is online and ready to receive invites.`);
+    });
 
+    // 2. DIRECT INVITE RELAY
+    socket.on('send-direct-invite', ({ targetUsername, hostUsername, roomId, type }) => {
+        // Send an alert directly to the target user's personal room
+        io.to(`user:${targetUsername}`).emit('receive-invite', {
+            hostUsername,
+            roomId,
+            type // 'room' or 'file'
+        });
+    });
     socket.on('request-join', ({ roomId, username }) => {
         const room = rooms[roomId];
         if (!room) {

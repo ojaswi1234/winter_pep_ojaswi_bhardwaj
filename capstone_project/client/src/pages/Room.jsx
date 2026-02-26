@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
-import { Copy, Check, Plus, LogOut, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
+import { Copy, Check, Plus, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
 import Whiteboard from '../components/Whiteboard';
 import Toolbar from '../components/Toolbar';
 import Chat from '../components/Chat';
@@ -35,8 +35,8 @@ const Room = () => {
     const [isSharing, setIsSharing] = useState(false);
     const [remoteStream, setRemoteStream] = useState(null);
     const localStreamRef = useRef(null);
-    const peerConnectionsRef = useRef({}); // Map: socketId -> RTCPeerConnection
-    const myPeerRef = useRef(null); // For receiving stream
+    const peerConnectionsRef = useRef({}); 
+    const myPeerRef = useRef(null); 
 
     // Logic States
     const [status, setStatus] = useState('initializing'); 
@@ -49,23 +49,36 @@ const Room = () => {
     const [clearVersion, setClearVersion] = useState(0);
     const [copied, setCopied] = useState(false);
 
-    // --- 1. INITIALIZATION ---
+    // --- TRACK PARTICIPANTS FOR DASHBOARD HISTORY ---
+    useEffect(() => {
+        if (users.length > 0) {
+            const history = JSON.parse(localStorage.getItem('roomHistory') || '[]');
+            const existingRoomIndex = history.findIndex(r => r.id === roomId);
+            
+            // Extract usernames, exclude self
+            const participantNames = users.map(u => u.username).filter(name => name !== username);
+            
+            if (existingRoomIndex !== -1) {
+                const existingParticipants = history[existingRoomIndex].participants || [];
+                history[existingRoomIndex].participants = [...new Set([...existingParticipants, ...participantNames])];
+                localStorage.setItem('roomHistory', JSON.stringify(history));
+            }
+        }
+    }, [users, roomId, username]);
+
+    // --- 1. INITIALIZATION & SOCKETS ---
     useEffect(() => {
         if (!socket.connected) socket.connect();
-
-        // Apply theme
         document.body.className = isDarkMode ? '' : 'light-mode';
 
-        // Auto-fetch local Network IP from backend for Mobile Controller
+        // Auto-fetch local Network IP
         const fetchIp = async () => {
             try {
                 const apiUrl = import.meta.env.VITE_SERVER_URL || 'http://localhost:5000';
                 const res = await fetch(`${apiUrl}/api/local-ip`);
                 const data = await res.json();
                 if (data.ip) setNetworkIp(data.ip);
-            } catch (err) {
-                console.error("Could not fetch network IP", err);
-            }
+            } catch (err) { console.error("Could not fetch network IP", err); }
         };
         fetchIp();
 
@@ -80,9 +93,7 @@ const Room = () => {
             socket.emit('request-join', { roomId, username: name });
         }
 
-        // --- GENERAL HANDLERS ---
         const handleRequest = (data) => setJoinRequests(prev => [...prev, data]);
-        
         const handleStatus = (data) => {
             if (data.status === 'accepted') {
                 setStatus('joined');
@@ -94,11 +105,10 @@ const Room = () => {
                 toast.error(data.message); navigate('/');
             }
         };
-
         const handleUsers = (list) => setUsers(list);
         const handleClosed = () => { toast.warning("Host closed room"); navigate('/'); };
 
-        // --- MOBILE COMMAND HANDLER ---
+        // MOBILE CONTROLLER
         const handleMobileCommand = ({ command, value }) => {
             if (command === 'tool') setTool(value);
             if (command === 'color') setColor(value);
@@ -106,68 +116,40 @@ const Room = () => {
                 if (value === 'undo') handleUndo();
                 if (value === 'redo') handleRedo();
             }
-            toast.info(`Mobile Action: ${command} ${value}`);
+            toast.info(`Mobile: ${command} ${value}`);
         };
 
-        // --- WebRTC HANDLERS ---
-        const handleUserStartedSharing = ({ userId }) => {
-            toast.info("Incoming Screen Share...");
-        };
-
+        // WEBRTC
+        const handleUserStartedSharing = ({ userId }) => toast.info("Incoming Screen Share...");
         const handleUserStoppedSharing = () => {
             setRemoteStream(null);
-            if(myPeerRef.current) {
-                myPeerRef.current.close();
-                myPeerRef.current = null;
-            }
+            if(myPeerRef.current) { myPeerRef.current.close(); myPeerRef.current = null; }
             toast.info("Screen Share ended.");
         };
-
         const handleWebRTCOffer = async ({ sdp, callerId }) => {
-            // Viewer receives offer
-            const peer = new RTCPeerConnection({
-                iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-            });
+            const peer = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
             myPeerRef.current = peer;
-
-            peer.onicecandidate = (e) => {
-                if (e.candidate) {
-                    socket.emit('webrtc-ice-candidate', { target: callerId, candidate: e.candidate });
-                }
-            };
-
-            peer.ontrack = (e) => {
-                setRemoteStream(e.streams[0]);
-            };
-
+            peer.onicecandidate = (e) => { if (e.candidate) socket.emit('webrtc-ice-candidate', { target: callerId, candidate: e.candidate }); };
+            peer.ontrack = (e) => setRemoteStream(e.streams[0]);
             await peer.setRemoteDescription(new RTCSessionDescription(sdp));
             const answer = await peer.createAnswer();
             await peer.setLocalDescription(answer);
-
             socket.emit('webrtc-answer', { target: callerId, sdp: answer });
         };
-
         const handleWebRTCAnswer = async ({ sdp, responderId }) => {
             const peer = peerConnectionsRef.current[responderId];
-            if (peer) {
-                await peer.setRemoteDescription(new RTCSessionDescription(sdp));
-            }
+            if (peer) await peer.setRemoteDescription(new RTCSessionDescription(sdp));
         };
-
         const handleWebRTCCandidate = async ({ candidate, senderId }) => {
             const peer = isSharing ? peerConnectionsRef.current[senderId] : myPeerRef.current;
-            if (peer) {
-                await peer.addIceCandidate(new RTCIceCandidate(candidate));
-            }
+            if (peer) await peer.addIceCandidate(new RTCIceCandidate(candidate));
         };
 
-        // Listeners
         socket.on('user-requesting', handleRequest);
         socket.on('join-status', handleStatus);
         socket.on('room-users', handleUsers);
         socket.on('room-closed', handleClosed);
         socket.on('mobile-command-received', handleMobileCommand);
-        
         socket.on('user-started-sharing', handleUserStartedSharing);
         socket.on('user-stopped-sharing', handleUserStoppedSharing);
         socket.on('webrtc-offer', handleWebRTCOffer);
@@ -197,33 +179,15 @@ const Room = () => {
             socket.emit('start-screen-share', { roomId, userId: socket.id });
 
             stream.getVideoTracks()[0].onended = stopScreenShare;
-
-            users.forEach(user => {
-                if (user.id !== socket.id) {
-                    createPeerConnection(user.id, stream);
-                }
-            });
-
-        } catch (err) {
-            console.error("Screen Share Error:", err);
-        }
+            users.forEach(user => { if (user.id !== socket.id) createPeerConnection(user.id, stream); });
+        } catch (err) { console.error("Screen Share Error:", err); }
     };
 
     const createPeerConnection = async (targetId, stream) => {
-        const peer = new RTCPeerConnection({
-            iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-        });
-
+        const peer = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
         peerConnectionsRef.current[targetId] = peer;
-
         stream.getTracks().forEach(track => peer.addTrack(track, stream));
-
-        peer.onicecandidate = (e) => {
-            if (e.candidate) {
-                socket.emit('webrtc-ice-candidate', { target: targetId, candidate: e.candidate });
-            }
-        };
-
+        peer.onicecandidate = (e) => { if (e.candidate) socket.emit('webrtc-ice-candidate', { target: targetId, candidate: e.candidate }); };
         const offer = await peer.createOffer();
         await peer.setLocalDescription(offer);
         socket.emit('webrtc-offer', { target: targetId, sdp: offer });
@@ -246,14 +210,9 @@ const Room = () => {
             const canvas = document.querySelector('canvas');
             if(!canvas) return;
             const stream = canvas.captureStream(30); 
-            
             const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
             mediaRecorderRef.current = recorder;
-            
-            recorder.ondataavailable = (e) => {
-                if (e.data.size > 0) recordedChunksRef.current.push(e.data);
-            };
-
+            recorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunksRef.current.push(e.data); };
             recorder.onstop = () => {
                 const blob = new Blob(recordedChunksRef.current, { type: 'video/webm' });
                 const url = URL.createObjectURL(blob);
@@ -263,14 +222,10 @@ const Room = () => {
                 a.click();
                 recordedChunksRef.current = [];
             };
-
             recorder.start();
             setIsRecording(true);
             toast.info("Recording started...");
-        } catch (err) {
-            console.error("Recording Error:", err);
-            toast.error("Recording failed. Check browser support.");
-        }
+        } catch (err) { toast.error("Recording failed. Check browser support."); }
     };
 
     const stopRecording = () => {
@@ -285,24 +240,10 @@ const Room = () => {
     const handleFileUpload = (e) => {
         const file = e.target.files[0];
         if (!file) return;
-
-        // Limit check
-        if (file.size > 100 * 1024 * 1024) {
-            toast.error("File size limit is 100MB");
-            return;
-        }
-
+        if (file.size > 100 * 1024 * 1024) return toast.error("File size limit is 100MB");
         const reader = new FileReader();
         reader.onload = (evt) => {
-            const fileData = evt.target.result;
-            const payload = {
-                roomId,
-                username,
-                fileName: file.name,
-                fileData, 
-                time: new Date().toLocaleTimeString()
-            };
-            socket.emit('upload-file', payload); 
+            socket.emit('upload-file', { roomId, username, fileName: file.name, fileData: evt.target.result, time: new Date().toLocaleTimeString() });
             toast.success("File uploaded to chat!");
         };
         reader.readAsDataURL(file);
@@ -324,23 +265,14 @@ const Room = () => {
     const handleRedo = () => socket.emit('redo', { roomId });
     const toggleTheme = () => setIsDarkMode(!isDarkMode);
 
-    // --- RENDER ---
     if (status === 'requesting') return <div className="full-screen" style={{alignItems:'center', justifyContent:'center'}}><h2>Waiting for Host...</h2></div>;
     if (status === 'denied') return <div className="full-screen" style={{alignItems:'center', justifyContent:'center'}}><h2>Access Denied</h2><button onClick={()=>navigate('/')} className="btn-secondary">Home</button></div>;
 
-    // Generate Dynamic QR Code URL using auto-extracted IP
-    // Generate Dynamic QR Code URL
+    // Smart QR Routing
     const port = window.location.port ? `:${window.location.port}` : '';
     const protocol = window.location.protocol;
-    
-    // SMART ROUTING:
-    // If in Production (Vercel/Netlify), use the real domain name.
-    // If in Development (Localhost), use the extracted Wi-Fi IP so the phone can connect.
     const isProduction = import.meta.env.PROD;
-    const baseHost = isProduction 
-        ? window.location.hostname 
-        : (networkIp !== 'localhost' ? networkIp : window.location.hostname);
-    
+    const baseHost = isProduction ? window.location.hostname : (networkIp !== 'localhost' ? networkIp : window.location.hostname);
     const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${protocol}//${baseHost}${isProduction ? '' : port}/mobile/${socket.id}`;
 
     return (
@@ -349,12 +281,7 @@ const Room = () => {
             {remoteStream && (
                 <div className="screen-share-overlay">
                     <div style={{color:'white', marginBottom:10, fontWeight:'bold'}}>Sharing Screen...</div>
-                    <video 
-                        className="screen-video"
-                        autoPlay 
-                        playsInline 
-                        ref={video => { if(video) video.srcObject = remoteStream }} 
-                    />
+                    <video className="screen-video" autoPlay playsInline ref={video => { if(video) video.srcObject = remoteStream }} />
                     <button onClick={() => setRemoteStream(null)} className="btn-danger" style={{marginTop:10}}>Close View</button>
                 </div>
             )}
@@ -395,21 +322,12 @@ const Room = () => {
                 </div>
                 <div style={{padding:20, flex:1, overflowY:'auto'}}>
                     <Toolbar 
-                        tool={tool} setTool={setTool} 
-                        color={color} setColor={setColor} 
-                        lineWidth={lineWidth} setLineWidth={setLineWidth} 
-                        onClear={handleClear}
-                        onDownload={handleDownload}
-                        onScreenShare={isSharing ? stopScreenShare : startScreenShare}
-                        isSharing={isSharing}
-                        onRecord={isRecording ? stopRecording : startRecording}
-                        isRecording={isRecording}
-                        onFileUpload={handleFileUpload}
-                        isDarkMode={isDarkMode}
-                        toggleTheme={toggleTheme}
-                        onUndo={handleUndo}
-                        onRedo={handleRedo}
-                        onOpenQR={() => setShowQR(true)}
+                        tool={tool} setTool={setTool} color={color} setColor={setColor} lineWidth={lineWidth} setLineWidth={setLineWidth} 
+                        onClear={handleClear} onDownload={handleDownload}
+                        onScreenShare={isSharing ? stopScreenShare : startScreenShare} isSharing={isSharing}
+                        onRecord={isRecording ? stopRecording : startRecording} isRecording={isRecording}
+                        onFileUpload={handleFileUpload} isDarkMode={isDarkMode} toggleTheme={toggleTheme}
+                        onUndo={handleUndo} onRedo={handleRedo} onOpenQR={() => setShowQR(true)}
                     />
                     
                     <div style={{marginTop:30}}>
@@ -433,12 +351,7 @@ const Room = () => {
                     {pages.map((p, i) => (
                         <div key={p} style={{marginBottom:40, boxShadow:'0 10px 30px rgba(0,0,0,0.1)', borderRadius:8, overflow:'hidden'}}>
                             <div style={{background:'white', padding:10, color:'#64748b', fontWeight:700, borderBottom:'1px solid #e2e8f0'}}>Page {i+1}</div>
-                            <Whiteboard 
-                                tool={tool} color={color} lineWidth={lineWidth} 
-                                roomId={roomId} pageId={p} username={username} socket={socket} 
-                                clearVersion={clearVersion} 
-                                downloadTrigger={downloadTrigger} 
-                            />
+                            <Whiteboard tool={tool} color={color} lineWidth={lineWidth} roomId={roomId} pageId={p} username={username} socket={socket} clearVersion={clearVersion} downloadTrigger={downloadTrigger} />
                         </div>
                     ))}
                     <button onClick={()=>setPages([...pages, pages.length])} className="btn-secondary" style={{width:'100%', marginTop:20}}><Plus size={18}/> Add Page</button>
