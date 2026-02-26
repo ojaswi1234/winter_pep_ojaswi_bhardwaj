@@ -1,5 +1,4 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { toast } from 'react-toastify';
 import '../App.css';
 
 const Whiteboard = ({ 
@@ -8,86 +7,15 @@ const Whiteboard = ({
     lineWidth, 
     roomId, 
     pageId, 
-    username, 
+    // username removed (unused)
     socket,
     clearVersion 
 }) => {
     const canvasRef = useRef(null);
     const [isDrawing, setIsDrawing] = useState(false);
+
+    // --- 1. HELPER FUNCTIONS (Moved Top to fix "Access before declaration") ---
     
-    // --- CANVAS SETUP ---
-    useEffect(() => {
-        const canvas = canvasRef.current;
-        const ctx = canvas.getContext('2d');
-        
-        // Use ResizeObserver for responsive canvas
-        const resizeCanvas = () => {
-            const parent = canvas.parentElement;
-            if (parent) {
-                // Save current image
-                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                
-                canvas.width = parent.clientWidth;
-                canvas.height = parent.clientHeight; // or fixed height like 800
-                
-                // Draw grid pattern for Pro look
-                drawGrid(ctx, canvas.width, canvas.height);
-                
-                // Restore image (simplified, real resize handling is complex)
-                ctx.putImageData(imageData, 0, 0);
-                
-                ctx.lineCap = 'round';
-                ctx.strokeStyle = color;
-                ctx.lineWidth = lineWidth;
-            }
-        };
-
-        resizeCanvas();
-        window.addEventListener('resize', resizeCanvas);
-        
-        // Initial Grid Draw
-        drawGrid(ctx, canvas.width, canvas.height);
-
-        // Listen for remote drawing events
-        const handleDraw = (data) => {
-            if (data.roomId === roomId && data.pageId === pageId) {
-                drawOnCanvas(data.x, data.y, data.prevX, data.prevY, data.color, data.width, data.tool);
-            }
-        };
-
-        // Listen for clear events
-        const handleClear = (data) => {
-            if (data.roomId === roomId && data.pageId === pageId) {
-                clearCanvas();
-            }
-        };
-
-        socket.on('draw', handleDraw);
-        socket.on('clear-board', handleClear);
-
-        return () => {
-            window.removeEventListener('resize', resizeCanvas);
-            socket.off('draw', handleDraw);
-            socket.off('clear-board', handleClear);
-        };
-    }, [roomId, pageId]); // Re-run if page/room changes
-
-    // Update context properties when props change
-    useEffect(() => {
-        const canvas = canvasRef.current;
-        const ctx = canvas.getContext('2d');
-        ctx.strokeStyle = color;
-        ctx.lineWidth = lineWidth;
-    }, [color, lineWidth]);
-
-    // Handle External Clear Trigger
-    useEffect(() => {
-        if (clearVersion > 0) {
-            clearCanvas();
-        }
-    }, [clearVersion]);
-
-    // --- DRAWING LOGIC ---
     const drawGrid = (ctx, width, height) => {
         // Professional dot grid
         const gridSize = 20;
@@ -125,6 +53,81 @@ const Whiteboard = ({
         drawGrid(ctx, canvas.width, canvas.height); // Redraw grid after clear
     };
 
+    // --- 2. EFFECT HOOKS ---
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext('2d');
+        
+        // Use ResizeObserver for responsive canvas
+        const resizeCanvas = () => {
+            const parent = canvas.parentElement;
+            if (parent) {
+                // Save current image
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                
+                canvas.width = parent.clientWidth;
+                canvas.height = parent.clientHeight; 
+                
+                // Draw grid pattern 
+                drawGrid(ctx, canvas.width, canvas.height);
+                
+                // Restore image
+                ctx.putImageData(imageData, 0, 0);
+                
+                ctx.lineCap = 'round';
+                ctx.strokeStyle = color;
+                ctx.lineWidth = lineWidth;
+            }
+        };
+
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+        
+        // Initial Grid Draw
+        drawGrid(ctx, canvas.width, canvas.height);
+
+        // Listen for remote drawing events
+        const handleDraw = (data) => {
+            if (data.roomId === roomId && data.pageId === pageId) {
+                drawOnCanvas(data.x, data.y, data.prevX, data.prevY, data.color, data.width, data.tool);
+            }
+        };
+
+        // Listen for clear events
+        const handleClear = (data) => {
+            if (data.roomId === roomId && data.pageId === pageId) {
+                clearCanvas();
+            }
+        };
+
+        socket.on('draw', handleDraw);
+        socket.on('clear-board', handleClear);
+
+        return () => {
+            window.removeEventListener('resize', resizeCanvas);
+            socket.off('draw', handleDraw);
+            socket.off('clear-board', handleClear);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [roomId, pageId]); // Re-run if page/room changes
+
+    // Update context properties when props change
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext('2d');
+        ctx.strokeStyle = color;
+        ctx.lineWidth = lineWidth;
+    }, [color, lineWidth]);
+
+    // Handle External Clear Trigger
+    useEffect(() => {
+        if (clearVersion > 0) {
+            clearCanvas();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [clearVersion]);
+
+    // --- 3. EVENT HANDLERS ---
     const startDrawing = ({ nativeEvent }) => {
         const { offsetX, offsetY } = nativeEvent;
         setIsDrawing(true);
@@ -171,7 +174,7 @@ const Whiteboard = ({
             style={{ 
                 display: 'block', 
                 width: '100%', 
-                height: '800px', // Default height
+                height: '800px', 
                 cursor: tool === 'pencil' ? 'crosshair' : 'cell',
                 touchAction: 'none'
             }}

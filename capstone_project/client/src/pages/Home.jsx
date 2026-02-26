@@ -1,25 +1,39 @@
-import React, { useState, useContext, useEffect } from 'react';
+import React, { useState, useContext } from 'react'; // Removed useEffect import
 import { useNavigate } from 'react-router-dom';
 import { v4 as uuidv4 } from 'uuid';
 import { AuthContext } from '../context/AuthContext';
 import { toast } from 'react-toastify';
-import '../App.css'; // Make sure this is imported
+import '../App.css'; 
 
 const Home = () => {
     const navigate = useNavigate();
-    const { user, logout } = useContext(AuthContext); // Added logout to context usage
+    const { user, logout } = useContext(AuthContext);
     const [roomId, setRoomId] = useState('');
-    const [recentRooms, setRecentRooms] = useState([]);
+    
+    // FIX: Initialize state directly from localStorage (Lazy Initialization)
+    // This prevents the "cascading render" error entirely.
+    const [recentRooms, setRecentRooms] = useState(() => {
+        try {
+            const history = localStorage.getItem('roomHistory');
+            return history ? JSON.parse(history) : [];
+        } catch (err) {
+            console.log("Error parsing room history from localStorage:", err);
+            return [
 
-    // Load history from local storage
-    useEffect(() => {
-        const history = JSON.parse(localStorage.getItem('roomHistory') || '[]');
-        setRecentRooms(history);
-    }, []);
+            ];
+            
+        }
+    });
 
     const addToHistory = (id) => {
+        // Create new history based on current state
         const newHistory = [{ id, date: new Date().toLocaleDateString() }, ...recentRooms.filter(r => r.id !== id)].slice(0, 10);
+        
+        // Update LocalStorage
         localStorage.setItem('roomHistory', JSON.stringify(newHistory));
+        
+        // Update State immediately (so the UI sidebar updates without refreshing)
+        setRecentRooms(newHistory);
     };
 
     const createRoom = () => {
