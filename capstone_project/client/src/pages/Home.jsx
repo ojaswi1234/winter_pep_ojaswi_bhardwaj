@@ -42,9 +42,10 @@ const Home = () => {
             navigate('/login');
             return;
         }
-        const newRoomId = uuidv4();
-        addToHistory(newRoomId);
-        navigate(`/room/${newRoomId}`);
+       const newRoomId = uuidv4();
+    addToHistory(newRoomId);
+    // Pass 'isHost: true' in state
+    navigate(`/room/${newRoomId}`, { state: { isHost: true, username: user.username } });
     };
 
     const joinRoom = (idToJoin) => {
@@ -59,7 +60,7 @@ const Home = () => {
             return;
         }
         addToHistory(targetId);
-        navigate(`/room/${targetId}`);
+       navigate(`/room/${targetId}`, { state: { isHost: false, username: user.username } });
     };
 
     // --- GUEST LANDING PAGE ---
