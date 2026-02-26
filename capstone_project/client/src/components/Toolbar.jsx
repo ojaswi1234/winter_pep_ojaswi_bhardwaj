@@ -1,24 +1,30 @@
 import React from 'react';
-import { Pencil, Eraser, Trash2, Download, Monitor, Video, Upload, Sun, Moon } from 'lucide-react';
+import { Pencil, Eraser, Trash2, Download, Monitor, Video, Upload, Sun, Moon, Smartphone, Undo, Redo } from 'lucide-react';
 
 const Toolbar = ({ 
     tool, setTool, 
     color, setColor, 
     lineWidth, setLineWidth, 
-    onClear, 
-    onDownload,
-    // New Props
+    onClear, onDownload,
+    // Advanced Props
     onScreenShare, isSharing,
     onRecord, isRecording,
     onFileUpload,
-    isDarkMode, toggleTheme
+    isDarkMode, toggleTheme,
+    onUndo, onRedo,
+    onOpenQR
 }) => {
     return (
         <div style={{display:'flex', flexDirection:'column', gap:20}}>
-            {/* Theme Toggle (Top) */}
-            <button onClick={toggleTheme} className="icon-btn" style={{justifyContent:'center', marginBottom:10}} title="Toggle Theme">
-                {isDarkMode ? <Sun size={18} color="orange"/> : <Moon size={18}/>}
-            </button>
+            {/* Theme & Pair */}
+            <div style={{display:'flex', gap:10}}>
+                <button onClick={toggleTheme} className="icon-btn" style={{flex:1, justifyContent:'center'}} title="Toggle Theme">
+                    {isDarkMode ? <Sun size={18}/> : <Moon size={18}/>}
+                </button>
+                <button onClick={onOpenQR} className="icon-btn" style={{flex:1, justifyContent:'center'}} title="Pair Mobile">
+                    <Smartphone size={18} color="var(--primary-yellow)"/>
+                </button>
+            </div>
 
             {/* Tools */}
             <div>
@@ -29,6 +35,12 @@ const Toolbar = ({
                 <button className={`icon-btn ${tool==='eraser'?'active':''}`} onClick={()=>setTool && setTool('eraser')} style={{width:'100%'}}>
                     <Eraser size={18} style={{marginRight:8}}/> Erase
                 </button>
+            </div>
+
+            {/* Actions (Undo/Redo) */}
+            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:10}}>
+                <button onClick={onUndo} className="icon-btn" style={{justifyContent:'center'}} title="Undo"><Undo size={18}/></button>
+                <button onClick={onRedo} className="icon-btn" style={{justifyContent:'center'}} title="Redo"><Redo size={18}/></button>
             </div>
 
             {/* Stroke */}
@@ -46,46 +58,26 @@ const Toolbar = ({
             {/* Advanced Features */}
             <div>
                 <label style={{color:'var(--text-muted)', fontSize:'0.7rem', letterSpacing:1, display:'block', marginBottom:5}}>ADVANCED</label>
-                <button 
-                    onClick={onScreenShare} 
-                    className={`icon-btn ${isSharing ? 'active' : ''}`}
-                    style={{width:'100%', marginBottom:5}}
-                >
+                <button onClick={onScreenShare} className={`icon-btn ${isSharing ? 'active' : ''}`} style={{width:'100%', marginBottom:5}}>
                     <Monitor size={18} style={{marginRight:8}}/> {isSharing ? 'Stop Share' : 'Screen Share'}
                 </button>
-                <button 
-                    onClick={onRecord} 
-                    className={`icon-btn ${isRecording ? 'active' : ''}`}
-                    style={{width:'100%', marginBottom:5, borderColor: isRecording ? '#EF4444' : ''}}
-                >
+                <button onClick={onRecord} className={`icon-btn ${isRecording ? 'active' : ''}`} style={{width:'100%', marginBottom:5, borderColor: isRecording ? '#EF4444' : ''}}>
                     <Video size={18} style={{marginRight:8}} color={isRecording ? '#EF4444' : 'currentColor'}/> {isRecording ? 'Stop Rec' : 'Record'}
                 </button>
                 <div style={{position:'relative', width:'100%'}}>
                     <input type="file" id="fileUpload" style={{display:'none'}} onChange={onFileUpload} />
-                    <button 
-                        onClick={() => document.getElementById('fileUpload').click()} 
-                        className="icon-btn" 
-                        style={{width:'100%'}}
-                    >
+                    <button onClick={() => document.getElementById('fileUpload').click()} className="icon-btn" style={{width:'100%'}}>
                         <Upload size={18} style={{marginRight:8}}/> Share File
                     </button>
                 </div>
             </div>
 
-            {/* Actions */}
+            {/* Footer Actions */}
             <div style={{marginTop:'auto', paddingTop:20, borderTop:'1px solid var(--glass-border)'}}>
-                <button 
-                    onClick={() => onDownload && onDownload()} 
-                    className="icon-btn" 
-                    style={{width:'100%', marginBottom:8, justifyContent:'center', color:'var(--accent-green)', borderColor:'var(--accent-green)'}}
-                >
+                <button onClick={() => onDownload && onDownload()} className="icon-btn" style={{width:'100%', marginBottom:8, justifyContent:'center', color:'var(--accent-green)', borderColor:'var(--accent-green)'}}>
                     <Download size={18} style={{marginRight:8}}/> Export
                 </button>
-                <button 
-                    onClick={() => onClear && onClear()} 
-                    className="btn-danger" 
-                    style={{width:'100%', display:'flex', justifyContent:'center'}}
-                >
+                <button onClick={() => onClear && onClear()} className="btn-danger" style={{width:'100%', display:'flex', justifyContent:'center'}}>
                     <Trash2 size={18} style={{marginRight:8}}/> Clear
                 </button>
             </div>

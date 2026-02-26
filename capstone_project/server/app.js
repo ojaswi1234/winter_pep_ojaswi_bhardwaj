@@ -15,19 +15,25 @@ connectDB();
 
 app.use('/api/auth', require('./routes/authRoutes'));
 
+// 1. INCREASE BUFFER FOR FILE SHARING (100MB)
 const io = new Server(server, {
     cors: { origin: "*", methods: ["GET", "POST"] },
-    maxHttpBufferSize: 1e8 // Increase buffer for file uploads (100MB)
+    maxHttpBufferSize: 1e8 
 });
 
+// Room State
+// Structure: { roomId: { hostId: string, users: [], history: [], redoStack: [] } }
 const rooms = {}; 
 
 io.on('connection', (socket) => {
-    // --- ROOM LOGIC ---
+    
+    // --- ROOM LOGIC (Preserved) ---
     socket.on('create-room', ({ roomId, username }) => {
         rooms[roomId] = {
             hostId: socket.id,
-            users: [{ id: socket.id, username }] 
+            users: [{ id: socket.id, username }],
+            history: [],    // For Undo
+            redoStack: []   // For Redo
         };
         socket.join(roomId);
         socket.emit('room-created', { success: true, isHost: true });
@@ -37,7 +43,7 @@ io.on('connection', (socket) => {
     socket.on('request-join', ({ roomId, username }) => {
         const room = rooms[roomId];
         if (!room) {
-            socket.emit('join-status', { status: 'error', message: "Room not found or host is offline." });
+            socket.emit('join-status', { status: 'error', message: "Room not found." });
             return;
         }
         io.to(room.hostId).emit('user-requesting', { socketId: socket.id, username });
@@ -62,25 +68,63 @@ io.on('connection', (socket) => {
              }
              io.to(roomId).emit('room-users', rooms[roomId].users);
              io.to(roomId).emit('user-joined', { username, id: socket.id });
+             
+             // Send existing board history to new user
+             socket.emit('board-history', rooms[roomId].history);
         }
     });
 
-    // --- INTERACTION BROADCASTS ---
+    // --- DRAWING & HISTORY (Undo/Redo Preserved) ---
     socket.on('draw', (data) => socket.to(data.roomId).emit('draw', data));
-    socket.on('clear-board', (data) => io.to(data.roomId).emit('clear-board', data));
-    socket.on('send-message', (data) => io.to(data.roomId).emit('receive-message', data));
-    socket.on('mouse-move', (data) => socket.to(data.roomId).emit('mouse-move', data));
 
-    // --- NEW FEATURES SIGNALING ---
+    socket.on('commit-stroke', ({ roomId, stroke }) => {
+        if (rooms[roomId]) {
+            rooms[roomId].history.push(stroke);
+            rooms[roomId].redoStack = []; 
+        }
+    });
+
+    socket.on('undo', ({ roomId }) => {
+        if (rooms[roomId] && rooms[roomId].history.length > 0) {
+            const lastAction = rooms[roomId].history.pop();
+            rooms[roomId].redoStack.push(lastAction);
+            io.to(roomId).emit('board-history', rooms[roomId].history); 
+        }
+    });
+
+    socket.on('redo', ({ roomId }) => {
+        if (rooms[roomId] && rooms[roomId].redoStack.length > 0) {
+            const action = rooms[roomId].redoStack.pop();
+            rooms[roomId].history.push(action);
+            io.to(roomId).emit('board-history', rooms[roomId].history);
+        }
+    });
+
+    socket.on('clear-board', (data) => {
+        if (rooms[data.roomId]) {
+            rooms[data.roomId].history = [];
+            rooms[data.roomId].redoStack = [];
+        }
+        io.to(data.roomId).emit('clear-board', data);
+    });
+
+    // --- MOBILE CONTROLLER (Preserved) ---
+    socket.on('mobile-join', ({ targetSocketId }) => {
+        console.log(`Mobile controller connected for ${targetSocketId}`);
+    });
+
+    socket.on('mobile-command', ({ targetSocketId, command, value }) => {
+        io.to(targetSocketId).emit('mobile-command-received', { command, value });
+    });
+
+    // --- NEW ADVANCED FEATURES ---
 
     // 1. File Sharing
     socket.on('upload-file', (data) => {
-        // Broadcast file to room
         io.to(data.roomId).emit('receive-file', data);
     });
 
     // 2. WebRTC Signaling (Screen Share)
-    // When a user starts sharing, they send 'start-screen-share'
     socket.on('start-screen-share', ({ roomId, userId }) => {
         socket.to(roomId).emit('user-started-sharing', { userId });
     });
@@ -89,7 +133,6 @@ io.on('connection', (socket) => {
         socket.to(roomId).emit('user-stopped-sharing');
     });
 
-    // Standard WebRTC Signaling: Offer, Answer, ICE Candidates
     socket.on('webrtc-offer', (data) => {
         socket.to(data.target).emit('webrtc-offer', {
             sdp: data.sdp,

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
-import { Copy, Check, Plus, LogOut, PanelLeftClose, PanelLeftOpen, ShieldAlert } from 'lucide-react';
+import { Copy, Check, Plus, LogOut, PanelLeftClose, PanelLeftOpen, ShieldAlert, X } from 'lucide-react';
 import Whiteboard from '../components/Whiteboard';
 import Toolbar from '../components/Toolbar';
 import Chat from '../components/Chat';
@@ -21,6 +21,7 @@ const Room = () => {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
     const [downloadTrigger, setDownloadTrigger] = useState(0);
     const [isDarkMode, setIsDarkMode] = useState(true);
+    const [showQR, setShowQR] = useState(false); // Mobile Controller QR
 
     // Advanced Feature States
     const [isRecording, setIsRecording] = useState(false);
@@ -31,8 +32,8 @@ const Room = () => {
     const [isSharing, setIsSharing] = useState(false);
     const [remoteStream, setRemoteStream] = useState(null);
     const localStreamRef = useRef(null);
-    const peerConnectionsRef = useRef({}); // Map: socketId -> RTCPeerConnection (for host broadcasting)
-    const myPeerRef = useRef(null); // RTCPeerConnection (for viewer receiving)
+    const peerConnectionsRef = useRef({}); // Map: socketId -> RTCPeerConnection
+    const myPeerRef = useRef(null); // For receiving stream
 
     // Logic States
     const [status, setStatus] = useState('initializing'); 
@@ -49,7 +50,7 @@ const Room = () => {
     useEffect(() => {
         if (!socket.connected) socket.connect();
 
-        // Apply theme on load
+        // Apply theme
         document.body.className = isDarkMode ? '' : 'light-mode';
 
         if (isHost) {
@@ -81,11 +82,20 @@ const Room = () => {
         const handleUsers = (list) => setUsers(list);
         const handleClosed = () => { toast.warning("Host closed room"); navigate('/'); };
 
+        // --- MOBILE CONTROLLER ---
+        const handleMobileCommand = ({ command, value }) => {
+            if (command === 'tool') setTool(value);
+            if (command === 'color') setColor(value);
+            if (command === 'action') {
+                if (value === 'undo') handleUndo();
+                if (value === 'redo') handleRedo();
+            }
+            toast.info(`Mobile Action: ${command} ${value}`);
+        };
+
         // --- WebRTC HANDLERS ---
         const handleUserStartedSharing = ({ userId }) => {
             toast.info("Incoming Screen Share...");
-            // As a viewer, prepare to receive
-            // The broadcaster (userId) will send an offer via signaling
         };
 
         const handleUserStoppedSharing = () => {
@@ -122,7 +132,6 @@ const Room = () => {
         };
 
         const handleWebRTCAnswer = async ({ sdp, responderId }) => {
-            // Broadcaster receives answer
             const peer = peerConnectionsRef.current[responderId];
             if (peer) {
                 await peer.setRemoteDescription(new RTCSessionDescription(sdp));
@@ -130,7 +139,6 @@ const Room = () => {
         };
 
         const handleWebRTCCandidate = async ({ candidate, senderId }) => {
-            // Add ICE candidate
             const peer = isSharing ? peerConnectionsRef.current[senderId] : myPeerRef.current;
             if (peer) {
                 await peer.addIceCandidate(new RTCIceCandidate(candidate));
@@ -141,6 +149,7 @@ const Room = () => {
         socket.on('join-status', handleStatus);
         socket.on('room-users', handleUsers);
         socket.on('room-closed', handleClosed);
+        socket.on('mobile-command-received', handleMobileCommand);
         
         socket.on('user-started-sharing', handleUserStartedSharing);
         socket.on('user-stopped-sharing', handleUserStoppedSharing);
@@ -153,6 +162,7 @@ const Room = () => {
             socket.off('join-status', handleStatus);
             socket.off('room-users', handleUsers);
             socket.off('room-closed', handleClosed);
+            socket.off('mobile-command-received', handleMobileCommand);
             socket.off('user-started-sharing');
             socket.off('user-stopped-sharing');
             socket.off('webrtc-offer');
@@ -161,7 +171,7 @@ const Room = () => {
         };
     }, [roomId, isHost, username, navigate, isSharing, isDarkMode]);
 
-    // --- SCREEN SHARING LOGIC (Broadcaster) ---
+    // --- SCREEN SHARING LOGIC ---
     const startScreenShare = async () => {
         try {
             const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
@@ -169,10 +179,8 @@ const Room = () => {
             setIsSharing(true);
             socket.emit('start-screen-share', { roomId, userId: socket.id });
 
-            // Stop sharing when user clicks "Stop" in browser UI
             stream.getVideoTracks()[0].onended = stopScreenShare;
 
-            // Initiate connections to all existing users
             users.forEach(user => {
                 if (user.id !== socket.id) {
                     createPeerConnection(user.id, stream);
@@ -211,8 +219,6 @@ const Room = () => {
         }
         setIsSharing(false);
         socket.emit('stop-screen-share', { roomId });
-        
-        // Close all peer connections
         Object.values(peerConnectionsRef.current).forEach(peer => peer.close());
         peerConnectionsRef.current = {};
     };
@@ -220,15 +226,10 @@ const Room = () => {
     // --- RECORDING LOGIC ---
     const startRecording = async () => {
         try {
-            // Get Canvas Stream
             const canvas = document.querySelector('canvas');
             if(!canvas) return;
-            const stream = canvas.captureStream(30); // 30 FPS
+            const stream = canvas.captureStream(30); 
             
-            // Optional: Mix in Microphone audio?
-            // const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            // ... combine tracks ...
-
             const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
             mediaRecorderRef.current = recorder;
             
@@ -251,7 +252,7 @@ const Room = () => {
             toast.info("Recording started...");
         } catch (err) {
             console.error("Recording Error:", err);
-            toast.error("Failed to start recording.");
+            toast.error("Recording failed. Check browser support.");
         }
     };
 
@@ -268,6 +269,12 @@ const Room = () => {
         const file = e.target.files[0];
         if (!file) return;
 
+        // Limit to 100MB check logic on client side if needed
+        if (file.size > 100 * 1024 * 1024) {
+            toast.error("File size limit is 100MB");
+            return;
+        }
+
         const reader = new FileReader();
         reader.onload = (evt) => {
             const fileData = evt.target.result;
@@ -275,22 +282,16 @@ const Room = () => {
                 roomId,
                 username,
                 fileName: file.name,
-                fileData, // Base64 string
+                fileData, // Base64
                 time: new Date().toLocaleTimeString()
             };
-            socket.emit('upload-file', payload); // Send to server to broadcast to chat
+            socket.emit('upload-file', payload);
             toast.success("File uploaded to chat!");
         };
         reader.readAsDataURL(file);
     };
 
-    // --- THEME TOGGLE ---
-    const toggleTheme = () => {
-        setIsDarkMode(!isDarkMode);
-        // Effect applies class body
-    };
-
-    // --- STANDARD ACTIONS ---
+    // --- ACTIONS ---
     const handlePermission = (socketId, action) => {
         socket.emit('respond-join', { socketId, action, roomId });
         setJoinRequests(prev => prev.filter(req => req.socketId !== socketId));
@@ -301,17 +302,20 @@ const Room = () => {
         setClearVersion(v => v + 1); 
     };
 
-    const handleDownload = () => {
-        setDownloadTrigger(v => v + 1);
-    };
+    const handleDownload = () => setDownloadTrigger(v => v + 1);
+    const handleUndo = () => socket.emit('undo', { roomId });
+    const handleRedo = () => socket.emit('redo', { roomId });
+    const toggleTheme = () => setIsDarkMode(!isDarkMode);
 
     // --- RENDER ---
     if (status === 'requesting') return <div className="full-screen" style={{alignItems:'center', justifyContent:'center'}}><h2>Waiting for Host...</h2></div>;
     if (status === 'denied') return <div className="full-screen" style={{alignItems:'center', justifyContent:'center'}}><h2>Access Denied</h2><button onClick={()=>navigate('/')} className="btn-secondary">Home</button></div>;
 
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${window.location.origin}/mobile/${socket.id}`;
+
     return (
         <div className="room-container">
-            {/* Screen Share Overlay (Viewer) */}
+            {/* Screen Share Overlay */}
             {remoteStream && (
                 <div className="screen-share-overlay">
                     <div style={{color:'white', marginBottom:10, fontWeight:'bold'}}>Sharing Screen...</div>
@@ -333,6 +337,18 @@ const Room = () => {
                     <button onClick={()=>handlePermission(req.socketId,'deny')} className="btn-danger">Deny</button>
                 </div>
             ))}
+
+            {/* Mobile QR Modal */}
+            {showQR && (
+                <div style={{position:'absolute', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.8)', zIndex:300, display:'flex', alignItems:'center', justifyContent:'center'}}>
+                    <div className="glass-panel" style={{padding:30, textAlign:'center', position:'relative', background:'var(--bg-panel)'}}>
+                        <button onClick={()=>setShowQR(false)} style={{position:'absolute', top:10, right:10, background:'transparent', border:'none', color:'var(--text-main)', cursor:'pointer'}}><X size={20}/></button>
+                        <h3 style={{marginTop:0, color:'var(--primary-yellow)'}}>Mobile Controller</h3>
+                        <img src={qrUrl} alt="QR Code" style={{border:'5px solid white', borderRadius:8}} />
+                        <p style={{fontSize:'0.8rem', color:'var(--text-muted)', marginTop:15}}>Scan to pair your phone</p>
+                    </div>
+                </div>
+            )}
 
             <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="toggle-btn" style={{ left: isSidebarOpen ? '270px' : '20px', top: '15px' }}>
                 {isSidebarOpen ? <PanelLeftClose size={20}/> : <PanelLeftOpen size={20}/>}
@@ -361,6 +377,9 @@ const Room = () => {
                         onFileUpload={handleFileUpload}
                         isDarkMode={isDarkMode}
                         toggleTheme={toggleTheme}
+                        onUndo={handleUndo}
+                        onRedo={handleRedo}
+                        onOpenQR={() => setShowQR(true)}
                     />
                     
                     <div style={{marginTop:30}}>

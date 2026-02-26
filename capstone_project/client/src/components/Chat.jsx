@@ -79,7 +79,7 @@ const Chat = ({ roomId, username }) => {
                                     <div style={{display:'flex', alignItems:'center', gap:8}}>
                                         <File size={16}/>
                                         <div>
-                                            <div style={{fontWeight:'bold', fontSize:'0.8rem'}}>{msg.fileName}</div>
+                                            <div style={{fontWeight:'bold', fontSize:'0.8rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 150}}>{msg.fileName}</div>
                                             <a href={msg.fileData} download={msg.fileName} style={{color: isMe?'black':'var(--primary-yellow)', fontSize:'0.75rem', display:'flex', alignItems:'center', gap:4, textDecoration:'none'}}>
                                                 <Download size={12}/> Download
                                             </a>
