@@ -13,16 +13,14 @@ const Room = () => {
     const location = useLocation();
     const navigate = useNavigate();
     
-    // User State
+    // User Info
     const [username, setUsername] = useState(location.state?.username || '');
     const [isHost, setIsHost] = useState(location.state?.isHost || false);
     
-    // Room State
+    // States
     const [status, setStatus] = useState('initializing'); 
-    const [users, setUsers] = useState([]); // List of active users
+    const [users, setUsers] = useState([]); 
     const [joinRequests, setJoinRequests] = useState([]); 
-    
-    // Tools State
     const [tool, setTool] = useState('pencil');
     const [color, setColor] = useState('#000000');
     const [lineWidth, setLineWidth] = useState(5);
@@ -30,76 +28,53 @@ const Room = () => {
     const [clearVersion, setClearVersion] = useState(0);
     const [copied, setCopied] = useState(false);
 
-    // --- 1. INITIALIZATION & SOCKET LOGIC ---
     useEffect(() => {
         if (!socket.connected) socket.connect();
 
         if (isHost) {
-            if (!username) {
-                toast.error("Host info missing");
-                navigate('/'); 
-                return;
-            }
-            // Host creates room
+            if (!username) { navigate('/'); return; }
             socket.emit('create-room', { roomId, username });
             setStatus('joined');
-        } 
-        else {
+        } else {
             if (!username) {
-                const nameInput = prompt("Enter your name to join:");
-                if (!nameInput) {
-                    navigate('/');
-                    return;
-                }
-                setUsername(nameInput);
+                const name = prompt("Enter your name to join:");
+                if (!name) { navigate('/'); return; }
+                setUsername(name);
                 setStatus('requesting');
-                socket.emit('request-join', { roomId, username: nameInput });
+                socket.emit('request-join', { roomId, username: name });
             } else {
                 setStatus('requesting');
                 socket.emit('request-join', { roomId, username });
             }
         }
 
-        // --- SOCKET LISTENERS ---
-
+        // --- LISTENERS ---
         socket.on('user-requesting', (data) => {
             setJoinRequests(prev => [...prev, data]);
-            toast.info(`${data.username} wants to join!`);
+            toast.info(`${data.username} wants to join`);
         });
 
         socket.on('join-status', (data) => {
             if (data.status === 'accepted') {
                 setStatus('joined');
-                // IMPORTANT: Tell server we are in, so it adds us to the list
+                // IMPORTANT: Confirm entry to sync active user list
                 socket.emit('join-confirmed', { roomId, username });
-                toast.success("Joined successfully!");
+                toast.success("Joined!");
             } else if (data.status === 'rejected') {
                 setStatus('denied');
-                toast.error("Host denied your request.");
-                setTimeout(() => navigate('/'), 3000);
-            } else if (data.status === 'error') {
-                toast.error(data.message);
-                navigate('/');
+            } else {
+                toast.error(data.message); navigate('/');
             }
         });
 
-        // FIX: Update the Active Users list
-        socket.on('room-users', (updatedUsers) => {
-            console.log("Updated Users List:", updatedUsers);
-            setUsers(updatedUsers);
-        });
+        socket.on('room-users', (list) => setUsers(list));
         
         socket.on('user-joined', (data) => {
             if(data.id !== socket.id) toast.success(`${data.username} joined`);
         });
 
-        socket.on('user-left', (userId) => {
-             // Optional: toast specific user left
-        });
-
         socket.on('room-closed', () => {
-            toast.warning("Host ended the session.");
-            navigate('/');
+            toast.warning("Host closed the room"); navigate('/');
         });
 
         return () => {
@@ -107,193 +82,91 @@ const Room = () => {
             socket.off('join-status');
             socket.off('room-users');
             socket.off('user-joined');
-            socket.off('user-left');
             socket.off('room-closed');
         };
     }, [roomId, isHost, username, navigate]);
 
-    // --- HOST ACTIONS ---
     const handlePermission = (socketId, action) => {
         socket.emit('respond-join', { socketId, action, roomId });
         setJoinRequests(prev => prev.filter(req => req.socketId !== socketId));
     };
 
-    // --- UI ACTIONS ---
-    const handleClearBoard = () => {
-        pages.forEach(pageId => socket.emit('clear-board', { roomId, pageId }));
-        setClearVersion(v => v + 1);
+    const handleCopy = () => {
+        navigator.clipboard.writeText(roomId);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
     };
 
-    const handleAddPage = () => {
-        setPages([...pages, pages.length > 0 ? Math.max(...pages) + 1 : 0]);
-        toast.success('New page added!');
-    };
-
-    const handleCopyRoomId = () => {
-        navigator.clipboard.writeText(roomId).then(() => {
-            setCopied(true);
-            toast.success('ID Copied!');
-            setTimeout(() => setCopied(false), 2000);
-        });
+    const handleClear = () => {
+        pages.forEach(p => socket.emit('clear-board', {roomId, pageId: p})); 
+        setClearVersion(v=>v+1); 
     };
 
     if (status === 'requesting') {
-        return (
-            <div className="full-screen" style={{ alignItems: 'center', justifyContent: 'center' }}>
-                <div className="glass-panel" style={{ padding: '40px', textAlign: 'center', maxWidth: '400px' }}>
-                    <h2 style={{ color: 'var(--primary-yellow)' }}>Waiting for Host...</h2>
-                    <p style={{ color: 'var(--text-muted)' }}>We've sent your request to join <strong>{roomId}</strong>.</p>
-                </div>
-            </div>
-        );
+        return <div className="full-screen" style={{alignItems:'center', justifyContent:'center', color:'white'}}><h2>Waiting for Host...</h2></div>;
     }
-
     if (status === 'denied') {
-        return (
-            <div className="full-screen" style={{ alignItems: 'center', justifyContent: 'center' }}>
-                <div className="glass-panel" style={{ padding: '40px', textAlign: 'center', borderColor: 'var(--danger)' }}>
-                    <ShieldAlert size={48} color="var(--danger)" style={{ marginBottom: '20px' }} />
-                    <h2 style={{ color: 'var(--danger)' }}>Access Denied</h2>
-                    <p>The host has declined your request.</p>
-                    <button onClick={() => navigate('/')} className="btn-secondary" style={{ marginTop: '20px' }}>Back to Home</button>
-                </div>
-            </div>
-        );
+        return <div className="full-screen" style={{alignItems:'center', justifyContent:'center', color:'white'}}><h2>Access Denied</h2><button onClick={()=>navigate('/')} className="btn-secondary" style={{marginTop:20}}>Back Home</button></div>;
     }
 
-    // --- MAIN ROOM UI ---
     return (
         <div className="room-container">
-            {/* Permission Popup (Host Only) */}
+            {/* Host Popup */}
             {isHost && joinRequests.length > 0 && (
-                <div style={{
-                    position: 'absolute',
-                    top: '20px',
-                    left: '50%',
-                    transform: 'translateX(-50%)',
-                    zIndex: 1000,
-                    width: '400px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '10px'
-                }}>
-                    {joinRequests.map((req) => (
-                        <div key={req.socketId} className="glass-panel" style={{ 
-                            padding: '15px', 
-                            background: 'rgba(15, 23, 42, 0.95)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            border: '1px solid var(--primary-yellow)',
-                            boxShadow: '0 10px 25px rgba(0,0,0,0.5)'
-                        }}>
-                            <div>
-                                <strong style={{ color: 'var(--primary-yellow)' }}>{req.username}</strong>
-                                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>wants to join</div>
-                            </div>
-                            <div style={{ display: 'flex', gap: '10px' }}>
-                                <button 
-                                    onClick={() => handlePermission(req.socketId, 'accept')}
-                                    className="btn-primary" 
-                                    style={{ padding: '8px 12px', fontSize: '0.8rem' }}
-                                >
-                                    Allow
-                                </button>
-                                <button 
-                                    onClick={() => handlePermission(req.socketId, 'deny')}
-                                    className="btn-danger" 
-                                    style={{ padding: '8px 12px', fontSize: '0.8rem' }}
-                                >
-                                    Deny
-                                </button>
+                <div style={{ position: 'absolute', top: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 100, width: 400 }}>
+                    {joinRequests.map(req => (
+                        <div key={req.socketId} className="glass-panel" style={{ padding: 15, background: '#0F172A', display: 'flex', justifyContent:'space-between', alignItems:'center', marginBottom: 10, border:'1px solid #F59E0B' }}>
+                            <span style={{color:'white'}}><strong>{req.username}</strong> wants to join</span>
+                            <div style={{display:'flex', gap:10}}>
+                                <button onClick={()=>handlePermission(req.socketId,'accept')} className="btn-primary" style={{padding:'6px 12px', fontSize:'0.8rem'}}>Allow</button>
+                                <button onClick={()=>handlePermission(req.socketId,'deny')} className="btn-danger" style={{padding:'6px 12px', fontSize:'0.8rem'}}>Deny</button>
                             </div>
                         </div>
                     ))}
                 </div>
             )}
 
-            {/* Sidebar */}
             <div className="room-sidebar">
                 <div className="room-header-info">
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                        {isHost ? 'Hosting Session' : 'Guest Session'}
-                    </div>
-                    <div className="room-id-display" onClick={handleCopyRoomId} title="Copy ID">
-                        <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', width:'180px' }}>{roomId}</span>
-                        {copied ? <Check size={16} /> : <Copy size={16} />}
+                    <div style={{fontSize:'0.8rem', color:'#94A3B8', textTransform:'uppercase'}}>{isHost ? 'HOST' : 'GUEST'}</div>
+                    <div className="room-id-display" onClick={handleCopy}>
+                        <span style={{overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', width:180}}>{roomId}</span>{copied ? <Check size={16}/> : <Copy size={16}/>}
                     </div>
                 </div>
-
                 <div className="toolbar-container">
-                    <Toolbar 
-                        tool={tool} 
-                        setTool={setTool} 
-                        color={color} 
-                        setColor={setColor} 
-                        lineWidth={lineWidth} 
-                        setLineWidth={setLineWidth}
-                        onClear={handleClearBoard}
-                    />
-                    
-                    <div className="tool-group" style={{ marginTop: '30px' }}>
-                        <label>Pages</label>
-                        <button onClick={handleAddPage} className="btn-secondary" style={{ width: '100%', display:'flex', alignItems:'center', justifyContent:'center', gap:'8px' }}>
-                            <Plus size={16} /> Add Page
-                        </button>
-                    </div>
-
-                    <div className="tool-group">
-                         <label>Active Users ({users.length})</label>
-                         <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-                            {users && users.map((u, i) => (
-                                <li key={i} style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px', padding: '8px', borderRadius: '6px', background: u.username === username ? 'rgba(255,255,255,0.05)' : 'transparent' }}>
-                                    <div style={{ width: '24px', height: '24px', background: u.username === username ? 'var(--primary-yellow)' : 'var(--accent-green)', borderRadius: '50%', color: u.username === username ? 'black' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 'bold' }}>
-                                        {u.username.charAt(0).toUpperCase()}
-                                    </div>
-                                    <span style={{ fontSize: '0.9rem', color: u.username === username ? 'white' : 'var(--text-muted)' }}>
-                                        {u.username} {u.username === username && '(You)'}
-                                    </span>
+                    <Toolbar tool={tool} setTool={setTool} color={color} setColor={setColor} lineWidth={lineWidth} setLineWidth={setLineWidth} onClear={handleClear}/>
+                    <div style={{marginTop:30}}>
+                        <label style={{color:'#94A3B8', fontSize:'0.8rem', letterSpacing:1}}>ACTIVE USERS ({users.length})</label>
+                        <ul style={{listStyle:'none', padding:0, marginTop:10}}>
+                            {users.map((u,i) => (
+                                <li key={i} style={{padding:'8px', borderRadius:6, marginBottom:5, fontSize:'0.9rem', color: u.username===username?'black':'white', background: u.username===username?'#F59E0B':'transparent', display:'flex', alignItems:'center', gap:10}}>
+                                    <div style={{width:24, height:24, borderRadius:'50%', background: u.username===username?'black':'#10B981', color: u.username===username?'white':'black', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:'bold', fontSize:'0.8rem'}}>{u.username.charAt(0).toUpperCase()}</div>
+                                    {u.username} {u.username===username && '(You)'}
                                 </li>
                             ))}
-                         </ul>
+                        </ul>
+                    </div>
+                    <div style={{marginTop:30}}>
+                         <button onClick={()=>setPages([...pages, pages.length])} className="btn-secondary" style={{width:'100%', display:'flex', justifyContent:'center', alignItems:'center', gap:5}}><Plus size={16}/> Add Page</button>
                     </div>
                 </div>
-
-                <div style={{ padding: '20px', borderTop: '1px solid var(--glass-border)' }}>
-                    <button onClick={() => navigate('/')} className="btn-danger" style={{ width: '100%', display:'flex', justifyContent:'center', gap:'8px' }}>
-                        <LogOut size={16} /> Leave Room
-                    </button>
+                <div style={{padding:20, borderTop:'1px solid rgba(255,255,255,0.1)'}}>
+                     <button onClick={()=>navigate('/')} className="btn-danger" style={{width:'100%', display:'flex', justifyContent:'center', gap:8}}><LogOut size={16}/> Leave</button>
                 </div>
             </div>
-            
-            {/* Canvas Area */}
-            <div className="canvas-wrapper" style={{ flex: 1, position: 'relative', overflow: 'hidden', background: '#f8fafc' }}>
-                <div className="pages-container" style={{ height: '100%', overflow: 'auto', padding: '20px' }}>
-                    {pages.map((pageId, index) => (
-                        <div key={pageId} className="page-wrapper" style={{ marginBottom: '40px', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
-                            <div className="page-label" style={{ padding: '10px', background: 'white', borderBottom: '1px solid #e2e8f0', fontWeight: 'bold', color: '#64748b' }}>
-                                Page {index + 1}
-                            </div>
-                            <Whiteboard 
-                                tool={tool} 
-                                color={color} 
-                                lineWidth={lineWidth} 
-                                roomId={roomId}
-                                pageId={pageId}
-                                username={username}
-                                socket={socket}
-                                clearVersion={clearVersion}
-                            />
+
+            <div className="canvas-wrapper">
+                <div className="pages-container" style={{height:'100%', overflow:'auto', padding:20}}>
+                    {pages.map((p, i) => (
+                        <div key={p} className="page-wrapper" style={{marginBottom:40, boxShadow:'0 4px 20px rgba(0,0,0,0.1)'}}>
+                            <div style={{background:'white', padding:'8px 16px', borderBottom:'1px solid #eee', color:'#64748b', fontWeight:'bold'}}>Page {i+1}</div>
+                            <Whiteboard tool={tool} color={color} lineWidth={lineWidth} roomId={roomId} pageId={p} username={username} socket={socket} clearVersion={clearVersion} />
                         </div>
                     ))}
                 </div>
             </div>
-
-            <div className="chat-wrapper">
-                 <Chat roomId={roomId} username={username} />
-            </div>
+            <Chat roomId={roomId} username={username} />
         </div>
     );
 };
-
 export default Room;

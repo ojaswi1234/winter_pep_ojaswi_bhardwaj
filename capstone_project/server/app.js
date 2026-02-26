@@ -22,47 +22,44 @@ const io = new Server(server, {
     }
 });
 
-// Store room state: { roomId: { hostId: string, users: [{ id, username }] } }
+// Store room state: { roomId: { hostId: string, users: [{ id, username, color }] } }
 const rooms = {}; 
 
 io.on('connection', (socket) => {
     
+    // --- ROOM MANAGEMENT ---
+
     // 1. Create Room (Host)
     socket.on('create-room', ({ roomId, username }) => {
         rooms[roomId] = {
             hostId: socket.id,
-            users: [{ id: socket.id, username }] // Add host to list
+            users: [{ id: socket.id, username }] 
         };
         socket.join(roomId);
         socket.emit('room-created', { success: true, isHost: true });
         
-        // FIX: Immediately send the user list to the host so they appear in "Active Users"
+        // Send initial user list to host
         io.to(roomId).emit('room-users', rooms[roomId].users);
-        
         console.log(`Room ${roomId} created by ${username}`);
     });
 
-    // 2. Request to Join (Participant)
+    // 2. Request to Join (Guest)
     socket.on('request-join', ({ roomId, username }) => {
         const room = rooms[roomId];
         if (!room) {
-            socket.emit('join-status', { status: 'error', message: "Room not found" });
+            socket.emit('join-status', { status: 'error', message: "Room not found or host is offline." });
             return;
         }
-
-        // Emit request to the Host only
-        io.to(room.hostId).emit('user-requesting', { 
-            socketId: socket.id, 
-            username 
-        });
+        // Notify Host
+        io.to(room.hostId).emit('user-requesting', { socketId: socket.id, username });
     });
 
-    // 3. Host Responds to Request
+    // 3. Host Responds
     socket.on('respond-join', ({ socketId, action, roomId }) => {
         if (action === 'accept') {
             const socketToJoin = io.sockets.sockets.get(socketId);
             if (socketToJoin) {
-                socketToJoin.join(roomId); // User physically joins the socket room
+                socketToJoin.join(roomId);
                 io.to(socketId).emit('join-status', { status: 'accepted', roomId });
             }
         } else {
@@ -70,27 +67,33 @@ io.on('connection', (socket) => {
         }
     });
 
-    // 4. Finalize Join (Update List)
+    // 4. Join Confirmed (Update Lists)
     socket.on('join-confirmed', ({ roomId, username }) => {
         if(rooms[roomId]) {
-             // FIX: Prevent duplicates if client sends event twice
              const isPresent = rooms[roomId].users.some(u => u.id === socket.id);
              if (!isPresent) {
                  rooms[roomId].users.push({ id: socket.id, username });
              }
-
-             // FIX: Broadcast NEW list to EVERYONE in the room
+             // Broadcast updated list to EVERYONE
              io.to(roomId).emit('room-users', rooms[roomId].users);
              io.to(roomId).emit('user-joined', { username, id: socket.id });
         }
     });
 
-    // --- Existing Features ---
+    // --- INTERACTIVE FEATURES ---
+
     socket.on('draw', (data) => socket.to(data.roomId).emit('draw', data));
+    
     socket.on('clear-board', (data) => io.to(data.roomId).emit('clear-board', data));
+    
     socket.on('send-message', (data) => io.to(data.roomId).emit('receive-message', data));
 
-    // 5. Handle Disconnect
+    // Interactive Mouse Cursors
+    socket.on('mouse-move', (data) => {
+        socket.to(data.roomId).emit('mouse-move', data);
+    });
+
+    // --- DISCONNECT HANDLING ---
     socket.on('disconnect', () => {
         for (const roomId in rooms) {
             const room = rooms[roomId];
@@ -98,15 +101,13 @@ io.on('connection', (socket) => {
             
             if (userIndex !== -1) {
                 const user = room.users[userIndex];
-                
-                // Remove user from list
                 room.users.splice(userIndex, 1);
                 
-                // Notify room
+                // Notify remaining users
                 io.to(roomId).emit('user-left', user.id);
-                io.to(roomId).emit('room-users', room.users); // FIX: Update list for remaining users
+                io.to(roomId).emit('room-users', room.users);
                 
-                // If Host leaves, close room (optional choice)
+                // If Host leaves, close room
                 if (socket.id === room.hostId) {
                     delete rooms[roomId]; 
                     io.to(roomId).emit('room-closed');

@@ -6,8 +6,7 @@ import Home from './pages/Home';
 import Room from './pages/Room';
 import Login from './pages/Login';
 import Register from './pages/Register';
-// ENSURE THIS IMPORT MATCHES THE FILENAME FROM STEP 3
-import { AuthProvider } from './context/AuthProvider'; 
+import { AuthProvider } from './context/AuthProvider';
 import LoginSuccess from './pages/LoginSuccess';
 import './App.css';
 
@@ -15,7 +14,7 @@ function App() {
   return (
     <AuthProvider>
         <Router>
-            <ToastContainer position="top-right" autoClose={3000} />
+            <ToastContainer position="top-right" autoClose={3000} theme="dark" />
             <Routes>
                 <Route path="/" element={<Home />} />
                 <Route path="/login" element={<Login />} />

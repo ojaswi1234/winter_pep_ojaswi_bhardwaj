@@ -342,3 +342,71 @@
   from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
 }
+/* --- UTILITIES --- */
+.container { max-width: 1200px; margin: 0 auto; padding: 0 20px; }
+.glass-panel {
+  background: rgba(30, 41, 59, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
+.full-screen { min-height: 100vh; display: flex; flex-direction: column; }
+
+/* --- BUTTONS --- */
+.btn-primary {
+  background: #F59E0B; color: #0B1120; border: none;
+  padding: 12px 24px; border-radius: 8px; font-weight: 700; cursor: pointer;
+  transition: all 0.3s ease; display: inline-flex; align-items: center; gap: 8px; justify-content: center;
+}
+.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3); }
+
+.btn-secondary {
+  background: transparent; border: 1px solid #10B981; color: #10B981;
+  padding: 12px 24px; border-radius: 8px; font-weight: 600; cursor: pointer; transition: 0.3s;
+}
+.btn-secondary:hover { background: rgba(16, 185, 129, 0.1); }
+
+.btn-danger {
+  background: transparent; color: #EF4444; border: 1px solid #EF4444;
+  padding: 8px 16px; border-radius: 6px; cursor: pointer; transition: 0.2s;
+}
+.btn-danger:hover { background: rgba(239, 68, 68, 0.1); }
+
+/* --- LANDING & AUTH --- */
+.landing-nav { display: flex; justify-content: space-between; padding: 24px 0; }
+.logo { font-size: 1.8rem; font-weight: 800; color: #F8FAFC; text-decoration: none; }
+.logo span { color: #F59E0B; }
+.hero-section { text-align: center; padding: 80px 0; }
+.hero-title { font-size: 4rem; font-weight: 800; margin-bottom: 24px; color: white; }
+.hero-title span { color: #F59E0B; }
+.auth-container { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: radial-gradient(circle at top right, #1e293b 0%, #0b1120 100%); }
+.auth-card { width: 100%; max-width: 400px; padding: 40px; text-align: center; }
+.form-group { text-align: left; margin-bottom: 20px; }
+.form-group label { display: block; margin-bottom: 8px; color: #94A3B8; font-size: 0.9rem; }
+.form-group input { 
+    width: 100%; padding: 12px; background: rgba(0,0,0,0.2); 
+    border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: white; box-sizing: border-box;
+}
+
+/* --- DASHBOARD --- */
+.dashboard-layout { display: flex; height: 100vh; overflow: hidden; background: #0B1120; color: white; }
+.sidebar-history { width: 280px; background: #1E293B; border-right: 1px solid rgba(255,255,255,0.08); padding: 24px; display: flex; flex-direction: column; }
+.history-list { margin-top: 20px; overflow-y: auto; flex: 1; }
+.history-item { padding: 12px; border-radius: 8px; margin-bottom: 8px; cursor: pointer; border: 1px solid transparent; }
+.history-item:hover { background: rgba(255,255,255,0.05); }
+.dashboard-main { flex: 1; padding: 40px; overflow-y: auto; background: radial-gradient(circle at 50% 0%, #1e293b 0%, #0b1120 60%); }
+.action-card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; }
+.action-card { padding: 32px; display: flex; flex-direction: column; height: 100%; align-items: flex-start; }
+.input-join { width: 100%; padding: 12px; margin-bottom: 16px; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; color: white; box-sizing: border-box; }
+
+/* --- ROOM UI --- */
+.room-container { display: flex; height: 100vh; position: relative; background: #f8fafc; }
+.room-sidebar { width: 260px; background: #0B1120; border-right: 1px solid rgba(255,255,255,0.08); display: flex; flex-direction: column; z-index: 20; color: white; }
+.room-header-info { padding: 20px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+.room-id-display { background: rgba(255,255,255,0.05); padding: 10px; border-radius: 6px; border: 1px dashed #F59E0B; color: #F59E0B; cursor: pointer; display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
+.toolbar-container { padding: 20px; flex: 1; overflow-y: auto; }
+.canvas-wrapper { flex: 1; position: relative; overflow: hidden; background: #f8fafc; }
+.icon-btn { background: #1E293B; border: 1px solid rgba(255,255,255,0.08); color: #94A3B8; padding: 10px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; transition: 0.2s; }
+.icon-btn:hover { background: rgba(255,255,255,0.05); }
+.icon-btn.active { background: #F59E0B; color: #0B1120; border-color: #F59E0B; }
