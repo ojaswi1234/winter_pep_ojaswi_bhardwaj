@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
-import { Copy, Check, Plus, LogOut, ShieldAlert } from 'lucide-react';
+import { Copy, Check, Plus, LogOut, PanelLeftClose, PanelLeftOpen } from 'lucide-react'; // New Icons
 import Whiteboard from '../components/Whiteboard';
 import Toolbar from '../components/Toolbar';
 import Chat from '../components/Chat';
@@ -17,7 +17,10 @@ const Room = () => {
     const [username, setUsername] = useState(location.state?.username || '');
     const [isHost, setIsHost] = useState(location.state?.isHost || false);
     
-    // States
+    // UI State
+    const [isSidebarOpen, setIsSidebarOpen] = useState(true); // Retractable Sidebar
+
+    // Logic States
     const [status, setStatus] = useState('initializing'); 
     const [users, setUsers] = useState([]); 
     const [joinRequests, setJoinRequests] = useState([]); 
@@ -48,7 +51,6 @@ const Room = () => {
             }
         }
 
-        // --- LISTENERS ---
         socket.on('user-requesting', (data) => {
             setJoinRequests(prev => [...prev, data]);
             toast.info(`${data.username} wants to join`);
@@ -57,7 +59,6 @@ const Room = () => {
         socket.on('join-status', (data) => {
             if (data.status === 'accepted') {
                 setStatus('joined');
-                // IMPORTANT: Confirm entry to sync active user list
                 socket.emit('join-confirmed', { roomId, username });
                 toast.success("Joined!");
             } else if (data.status === 'rejected') {
@@ -68,14 +69,8 @@ const Room = () => {
         });
 
         socket.on('room-users', (list) => setUsers(list));
-        
-        socket.on('user-joined', (data) => {
-            if(data.id !== socket.id) toast.success(`${data.username} joined`);
-        });
-
-        socket.on('room-closed', () => {
-            toast.warning("Host closed the room"); navigate('/');
-        });
+        socket.on('user-joined', (data) => { if(data.id !== socket.id) toast.success(`${data.username} joined`); });
+        socket.on('room-closed', () => { toast.warning("Host closed the room"); navigate('/'); });
 
         return () => {
             socket.off('user-requesting');
@@ -102,12 +97,8 @@ const Room = () => {
         setClearVersion(v=>v+1); 
     };
 
-    if (status === 'requesting') {
-        return <div className="full-screen" style={{alignItems:'center', justifyContent:'center', color:'white'}}><h2>Waiting for Host...</h2></div>;
-    }
-    if (status === 'denied') {
-        return <div className="full-screen" style={{alignItems:'center', justifyContent:'center', color:'white'}}><h2>Access Denied</h2><button onClick={()=>navigate('/')} className="btn-secondary" style={{marginTop:20}}>Back Home</button></div>;
-    }
+    if (status === 'requesting') return <div className="full-screen" style={{alignItems:'center', justifyContent:'center', color:'white'}}><h2>Waiting for Host...</h2></div>;
+    if (status === 'denied') return <div className="full-screen" style={{alignItems:'center', justifyContent:'center', color:'white'}}><h2>Access Denied</h2><button onClick={()=>navigate('/')} className="btn-secondary" style={{marginTop:20}}>Back Home</button></div>;
 
     return (
         <div className="room-container">
@@ -126,7 +117,18 @@ const Room = () => {
                 </div>
             )}
 
-            <div className="room-sidebar">
+            {/* Toggle Button for Room Sidebar */}
+            <button 
+                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                className="toggle-btn"
+                style={{ left: isSidebarOpen ? '270px' : '20px', top: '15px' }}
+                title={isSidebarOpen ? "Hide Toolbar" : "Show Toolbar"}
+            >
+                {isSidebarOpen ? <PanelLeftClose size={20}/> : <PanelLeftOpen size={20}/>}
+            </button>
+
+            {/* Retractable Sidebar */}
+            <div className={`room-sidebar ${!isSidebarOpen ? 'sidebar-closed' : ''}`}>
                 <div className="room-header-info">
                     <div style={{fontSize:'0.8rem', color:'#94A3B8', textTransform:'uppercase'}}>{isHost ? 'HOST' : 'GUEST'}</div>
                     <div className="room-id-display" onClick={handleCopy}>

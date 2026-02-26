@@ -3,14 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import { v4 as uuidv4 } from 'uuid';
 import { AuthContext } from '../context/AuthContext';
 import { toast } from 'react-toastify';
+import { Menu, X } from 'lucide-react'; // Import icons
 import '../App.css'; 
 
 const Home = () => {
     const navigate = useNavigate();
     const { user, logout } = useContext(AuthContext);
     const [roomId, setRoomId] = useState('');
+    const [isSidebarOpen, setIsSidebarOpen] = useState(true); // Toggle State
     
-    // Lazy initialize history to prevent cascading renders
     const [recentRooms, setRecentRooms] = useState(() => {
         try {
             return JSON.parse(localStorage.getItem('roomHistory') || '[]');
@@ -24,30 +25,22 @@ const Home = () => {
     };
 
     const createRoom = () => {
-        if (!user) { 
-            toast.error("Please login first");
-            navigate('/login'); return; 
-        }
+        if (!user) { toast.error("Please login first"); navigate('/login'); return; }
         const newRoomId = uuidv4();
         addToHistory(newRoomId);
-        // Important: Set isHost=true
         navigate(`/room/${newRoomId}`, { state: { isHost: true, username: user.username } });
     };
 
     const joinRoom = (idToJoin) => {
         const targetId = idToJoin || roomId;
-        if (!user) { 
-            toast.error("Please login first");
-            navigate('/login'); return; 
-        }
+        if (!user) { toast.error("Please login first"); navigate('/login'); return; }
         if(!targetId) { toast.warning("Enter Room ID"); return; }
         addToHistory(targetId);
-        // Important: Set isHost=false
         navigate(`/room/${targetId}`, { state: { isHost: false, username: user.username } });
     };
 
-    // Guest Landing Page
     if (!user) {
+        // Guest Landing (Unchanged)
         return (
              <div className="full-screen">
                 <div className="container">
@@ -69,10 +62,20 @@ const Home = () => {
         )
     }
 
-    // User Dashboard
+    // Authenticated Dashboard
     return (
         <div className="dashboard-layout">
-            <aside className="sidebar-history">
+            {/* Toggle Button */}
+            <button 
+                onClick={() => setIsSidebarOpen(!isSidebarOpen)} 
+                className="toggle-btn"
+                style={{ left: isSidebarOpen ? '260px' : '20px' }} // Moves with sidebar
+            >
+                {isSidebarOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
+
+            {/* Retractable Sidebar */}
+            <aside className={`sidebar-history ${!isSidebarOpen ? 'sidebar-closed' : ''}`}>
                 <div className="logo" style={{ fontSize: '1.5rem', marginBottom: '30px' }}>Collab<span>Board</span></div>
                 <h3 style={{ color: '#94A3B8', fontSize: '0.8rem', textTransform: 'uppercase' }}>Recent Boards</h3>
                 <div className="history-list">
@@ -87,7 +90,7 @@ const Home = () => {
             </aside>
 
             <main className="dashboard-main">
-                <header style={{ marginBottom: '40px' }}>
+                <header style={{ marginBottom: '40px', paddingLeft: isSidebarOpen ? '0' : '40px' }}>
                     <h2 style={{ fontSize:'2rem' }}>Welcome, <span style={{ color: '#F59E0B' }}>{user.username}</span></h2>
                 </header>
                 <div className="action-card-grid">
