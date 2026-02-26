@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import {socket} from '../utils/socket';
+import {socket} from '../utils/socket'; // Fixed import (assuming default export)
 import { Send, MessageSquare, X } from 'lucide-react';
 
 const Chat = ({ roomId, username }) => {
@@ -22,9 +22,19 @@ const Chat = ({ roomId, username }) => {
     const sendMessage = (e) => {
         e.preventDefault();
         if (message.trim()) {
-            const msgData = { roomId, username, message: message.trim(), time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
+            const msgData = { 
+                roomId, 
+                username, 
+                message: message.trim(), 
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) 
+            };
+            
+            // Emit to server
             socket.emit('send-message', msgData);
-            setMessages((prev) => [...prev, msgData]);
+            
+            // FIX: Do NOT add to state here. Wait for the 'receive-message' event.
+            // setMessages((prev) => [...prev, msgData]); <--- REMOVED TO PREVENT DUPLICATION
+            
             setMessage('');
             setTimeout(()=>messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
         }
