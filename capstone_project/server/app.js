@@ -22,7 +22,7 @@ const io = new Server(server, {
     }
 });
 
-// Store room state: { roomId: { hostId: string, users: [{ id, username, color }] } }
+// Store room state: { roomId: { hostId: string, users: [{ id, username }] } }
 const rooms = {}; 
 
 io.on('connection', (socket) => {
@@ -38,7 +38,7 @@ io.on('connection', (socket) => {
         socket.join(roomId);
         socket.emit('room-created', { success: true, isHost: true });
         
-        // Send initial user list to host
+        // Send initial user list to host immediately
         io.to(roomId).emit('room-users', rooms[roomId].users);
         console.log(`Room ${roomId} created by ${username}`);
     });
@@ -70,6 +70,7 @@ io.on('connection', (socket) => {
     // 4. Join Confirmed (Update Lists)
     socket.on('join-confirmed', ({ roomId, username }) => {
         if(rooms[roomId]) {
+             // Prevent duplicates
              const isPresent = rooms[roomId].users.some(u => u.id === socket.id);
              if (!isPresent) {
                  rooms[roomId].users.push({ id: socket.id, username });
@@ -88,7 +89,7 @@ io.on('connection', (socket) => {
     
     socket.on('send-message', (data) => io.to(data.roomId).emit('receive-message', data));
 
-    // Interactive Mouse Cursors
+    // Interactive Mouse Cursors (Broadcast to others)
     socket.on('mouse-move', (data) => {
         socket.to(data.roomId).emit('mouse-move', data);
     });
@@ -103,8 +104,8 @@ io.on('connection', (socket) => {
                 const user = room.users[userIndex];
                 room.users.splice(userIndex, 1);
                 
-                // Notify remaining users
-                io.to(roomId).emit('user-left', user.id);
+                // Notify remaining users (include username for cursor cleanup)
+                io.to(roomId).emit('user-left', { id: user.id, username: user.username });
                 io.to(roomId).emit('room-users', room.users);
                 
                 // If Host leaves, close room

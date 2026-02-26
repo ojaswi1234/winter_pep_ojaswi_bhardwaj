@@ -45,22 +45,36 @@ const Whiteboard = ({ tool, color, lineWidth, roomId, pageId, username, socket, 
         
         // Handle remote mouse
         const handleMouseMove = (d) => {
-            if(d.roomId===roomId && d.pageId===pageId) {
-                setCursors(prev => ({ ...prev, [d.username]: { x: d.x, y: d.y, color: d.color } }));
+            if(d.roomId===roomId && d.pageId===pageId && d.username !== username) {
+                const userColor = d.color || '#'+Math.floor(Math.random()*16777215).toString(16);
+                setCursors(prev => ({ ...prev, [d.username]: { x: d.x, y: d.y, color: userColor } }));
+            }
+        };
+
+        // Clean up cursor when a user leaves
+        const handleUserLeft = (d) => {
+            if (d.username) {
+                setCursors(prev => {
+                    const copy = { ...prev };
+                    delete copy[d.username];
+                    return copy;
+                });
             }
         };
 
         socket.on('draw', handleDraw);
         socket.on('clear-board', handleClear);
         socket.on('mouse-move', handleMouseMove);
+        socket.on('user-left', handleUserLeft);
 
         return () => {
             window.removeEventListener('resize', resize);
             socket.off('draw', handleDraw);
             socket.off('clear-board', handleClear);
             socket.off('mouse-move', handleMouseMove);
+            socket.off('user-left', handleUserLeft);
         };
-    }, [roomId, pageId]);
+    }, [roomId, pageId, username]);
 
     useEffect(() => {
         if(clearVersion > 0) {
