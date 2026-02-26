@@ -9,65 +9,44 @@ const Whiteboard = ({
     pageId, 
     username, 
     socket, 
-    clearVersion,
-    // New Props for Features
-    bgType = 'grid', 
-    downloadTrigger = 0
+    clearVersion, 
+    downloadTrigger 
 }) => {
     const canvasRef = useRef(null);
-    const containerRef = useRef(null); // Ref for the wrapper div (for responsiveness)
+    const containerRef = useRef(null);
     const [isDrawing, setIsDrawing] = useState(false);
-    const [cursors, setCursors] = useState({}); // Stores other users' cursor positions
+    const [cursors, setCursors] = useState({}); // KEEPS GHOST CURSORS
 
     // --- Helper Functions ---
 
-    // Modified to support Grid, Lines, or Plain backgrounds
-    const drawBackground = (ctx, w, h, type) => {
+    // Fixed to always draw the Pro Grid (removed dynamic type)
+    const drawGrid = (ctx, w, h) => {
         ctx.save();
-        // 1. Fill base with white (Crucial so downloaded images aren't transparent)
+        // 1. Fill base with white
         ctx.globalCompositeOperation = 'source-over';
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, w, h);
 
-        // 2. Draw specific pattern
-        ctx.strokeStyle = '#e2e8f0'; // Light grey for lines/dots
-        ctx.lineWidth = 1;
-
-        if (type === 'grid') {
-            // Dot Grid
-            ctx.fillStyle = '#e2e8f0';
-            for (let x = 0; x < w; x += 20) {
-                for (let y = 0; y < h; y += 20) {
-                    ctx.fillRect(x, y, 1, 1);
-                }
+        // 2. Draw Grid Pattern
+        ctx.fillStyle = '#e2e8f0';
+        for (let x = 0; x < w; x += 20) {
+            for (let y = 0; y < h; y += 20) {
+                ctx.fillRect(x, y, 1, 1);
             }
-        } else if (type === 'lines') {
-            // Notebook Lines
-            ctx.beginPath();
-            for (let y = 40; y < h; y += 40) {
-                ctx.moveTo(0, y);
-                ctx.lineTo(w, y);
-            }
-            ctx.stroke();
         }
-        // 'plain' type just leaves the white fill
         ctx.restore();
     };
 
-    // Main drawing function used by both local mouse events and socket events
     const drawOnCanvas = (x, y, px, py, sColor, sWidth, toolType) => {
         const ctx = canvasRef.current.getContext('2d');
         ctx.beginPath();
         ctx.strokeStyle = sColor;
-        ctx.lineWidth = sWidth;
-        // Eraser uses destination-out to remove pixels
-        ctx.globalCompositeOperation = toolType === 'eraser' ? 'destination-out' : 'source-over';
-        // Eraser is slightly larger for better UX
-        if (toolType === 'eraser') ctx.lineWidth = sWidth * 2;
-        
-        ctx.lineCap = 'round'; // Smooths line edges
+        ctx.lineWidth = toolType === 'eraser' ? sWidth * 2 : sWidth;
+        ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
-
+        
+        ctx.globalCompositeOperation = toolType === 'eraser' ? 'destination-out' : 'source-over';
+        
         ctx.moveTo(px, py);
         ctx.lineTo(x, y);
         ctx.stroke();
@@ -76,7 +55,7 @@ const Whiteboard = ({
 
     // --- Effects ---
 
-    // 1. Handle Download Trigger (New Feature)
+    // 1. Handle Download Trigger
     useEffect(() => {
         if (downloadTrigger > 0 && canvasRef.current) {
             const link = document.createElement('a');
@@ -86,41 +65,39 @@ const Whiteboard = ({
         }
     }, [downloadTrigger, roomId, pageId]);
 
-    // 2. Initialization, Resizing, Socket Listeners, and Background Handling
+    // 2. Main Logic: Initialization, Resizing, and Listeners
     useEffect(() => {
         const canvas = canvasRef.current;
         const container = containerRef.current;
         
-        // PERFORMANCE FIX: Add willReadFrequently: true to stop browser warnings
+        // Performance fix included
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
-        // Logic to Resize Canvas while preserving drawings
         const resize = () => {
             if (container) {
-                // 1. Save current drawing data
+                // Save current drawing
                 const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
                 
-                // 2. Resize canvas to match the container (handles sidebar toggle)
+                // Resize
                 canvas.width = container.clientWidth;
-                canvas.height = 800; // Fixed height per page
+                canvas.height = 800; 
                 
-                // 3. Redraw Background (Dynamic based on bgType)
-                drawBackground(ctx, canvas.width, canvas.height, bgType);
+                // Redraw Grid
+                drawGrid(ctx, canvas.width, canvas.height);
                 
-                // 4. Restore Drawing
+                // Restore Drawing
                 ctx.putImageData(img, 0, 0);
                 
-                // 5. Reset Context properties (context resets on resize)
+                // Reset Context
                 ctx.lineCap = 'round';
                 ctx.strokeStyle = color;
                 ctx.lineWidth = lineWidth;
             }
         };
 
-        // Initial Resize
         resize();
 
-        // Use ResizeObserver to detect when Sidebar toggles
+        // Responsive Sidebar Observer
         const resizeObserver = new ResizeObserver(() => {
             resize();
         });
@@ -129,7 +106,7 @@ const Whiteboard = ({
             resizeObserver.observe(container);
         }
         
-        // --- Socket Event Handlers ---
+        // Socket Handlers
         const handleDraw = (d) => { 
             if(d.roomId === roomId && d.pageId === pageId) {
                 drawOnCanvas(d.x, d.y, d.prevX, d.prevY, d.color, d.width, d.tool);
@@ -139,10 +116,11 @@ const Whiteboard = ({
         const handleClear = (d) => { 
             if(d.roomId === roomId && d.pageId === pageId) { 
                 ctx.clearRect(0, 0, canvas.width, canvas.height); 
-                drawBackground(ctx, canvas.width, canvas.height, bgType); 
+                drawGrid(ctx, canvas.width, canvas.height); 
             } 
         };
         
+        // GHOST CURSOR HANDLER
         const handleMouseMove = (d) => {
             if(d.roomId === roomId && d.pageId === pageId) {
                 setCursors(prev => ({ 
@@ -164,30 +142,30 @@ const Whiteboard = ({
             socket.off('clear-board', handleClear);
             socket.off('mouse-move', handleMouseMove);
         };
-    }, [roomId, pageId, bgType]); // IMPORTANT: Dependency on bgType to redraw background
+    }, [roomId, pageId]); 
 
-    // 3. Update Context when Tool/Color changes
+    // 3. Properties Update
     useEffect(() => {
         const ctx = canvasRef.current.getContext('2d');
         ctx.strokeStyle = color;
         ctx.lineWidth = lineWidth;
     }, [color, lineWidth]);
 
-    // 4. Handle External Clear Trigger
+    // 4. Handle Clear Trigger
     useEffect(() => {
         if(clearVersion > 0) {
              const ctx = canvasRef.current.getContext('2d');
              ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-             drawBackground(ctx, canvasRef.current.width, canvasRef.current.height, bgType);
+             drawGrid(ctx, canvasRef.current.width, canvasRef.current.height);
         }
-    }, [clearVersion, bgType]);
+    }, [clearVersion]);
 
-    // --- Interaction Handlers ---
+    // --- Interaction ---
 
     const handleMove = (e) => {
         const { offsetX, offsetY } = e.nativeEvent;
         
-        // Emit mouse position to server (Ghost Cursor)
+        // EMIT MOUSE MOVE (For Ghost Cursors)
         socket.emit('mouse-move', { 
             roomId, 
             pageId, 
@@ -197,14 +175,9 @@ const Whiteboard = ({
             color 
         });
 
-        // Handle Drawing
         if (isDrawing) {
             const { prevX, prevY } = canvasRef.current;
-            
-            // Draw Locally
             drawOnCanvas(offsetX, offsetY, prevX, prevY, color, lineWidth, tool);
-            
-            // Emit Drawing to Server
             socket.emit('draw', { 
                 roomId, 
                 pageId, 
@@ -216,8 +189,6 @@ const Whiteboard = ({
                 width: lineWidth, 
                 tool 
             });
-            
-            // Update previous coordinates
             canvasRef.current.prevX = offsetX;
             canvasRef.current.prevY = offsetY;
         }
@@ -245,7 +216,7 @@ const Whiteboard = ({
                 style={{ display: 'block', cursor: tool === 'pencil' ? 'crosshair' : 'default', touchAction: 'none' }} 
             />
             
-            {/* Render Remote Cursors (Ghost Cursors) */}
+            {/* GHOST CURSORS OVERLAY */}
             {Object.entries(cursors).map(([uName, pos]) => (
                 <div key={uName} style={{
                     position: 'absolute', 
