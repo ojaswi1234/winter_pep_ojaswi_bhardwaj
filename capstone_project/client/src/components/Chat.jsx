@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import socket from '../utils/socket';
+import {socket} from '../utils/socket';
 import { Send, MessageSquare, X, File, Download } from 'lucide-react';
 
 const Chat = ({ roomId, username }) => {
