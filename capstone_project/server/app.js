@@ -14,8 +14,10 @@ connectDB();
 
 app.use('/api/auth', require('./routes/authRoutes'));
 
+// Increase buffer to 100MB for File Sharing
 const io = new Server(server, {
-    cors: { origin: "*", methods: ["GET", "POST"] }
+    cors: { origin: "*", methods: ["GET", "POST"] },
+    maxHttpBufferSize: 1e8 
 });
 
 const rooms = {}; 
@@ -23,26 +25,21 @@ const rooms = {};
 io.on('connection', (socket) => {
     
     // --- GLOBAL INVITE SYSTEM ---
-    // Users register their username globally when on the dashboard
     socket.on('register-global', (username) => {
         socket.join(`user:${username}`);
-        console.log(`User ${username} registered for global invites.`);
     });
 
     socket.on('send-direct-invite', ({ targetUsername, hostUsername, roomId, type }) => {
-        // Send alert directly to the target user's private notification room
-        io.to(`user:${targetUsername}`).emit('receive-invite', {
-            hostUsername,
-            roomId,
-            type
-        });
+        io.to(`user:${targetUsername}`).emit('receive-invite', { hostUsername, roomId, type });
     });
 
     // --- ROOM MANAGEMENT ---
     socket.on('create-room', ({ roomId, username }) => {
         rooms[roomId] = {
             hostId: socket.id,
-            users: [{ id: socket.id, username }] 
+            users: [{ id: socket.id, username }],
+            history: [],
+            redoStack: []
         };
         socket.join(roomId);
         socket.emit('room-created', { success: true, isHost: true });
@@ -51,18 +48,15 @@ io.on('connection', (socket) => {
 
     socket.on('request-join', ({ roomId, username }) => {
         const room = rooms[roomId];
-        if (!room) {
-            socket.emit('join-status', { status: 'error', message: "Room not found." });
-            return;
-        }
+        if (!room) return socket.emit('join-status', { status: 'error', message: "Room not found." });
         io.to(room.hostId).emit('user-requesting', { socketId: socket.id, username });
     });
 
     socket.on('respond-join', ({ socketId, action, roomId }) => {
         if (action === 'accept') {
-            const socketToJoin = io.sockets.sockets.get(socketId);
-            if (socketToJoin) {
-                socketToJoin.join(roomId);
+            const client = io.sockets.sockets.get(socketId);
+            if (client) {
+                client.join(roomId);
                 io.to(socketId).emit('join-status', { status: 'accepted', roomId });
             }
         } else {
@@ -77,18 +71,48 @@ io.on('connection', (socket) => {
              }
              io.to(roomId).emit('room-users', rooms[roomId].users);
              io.to(roomId).emit('user-joined', { username, id: socket.id });
+             socket.emit('board-history', rooms[roomId].history);
         }
     });
 
-    // --- INTERACTIVE FEATURES ---
+    // --- INTERACTIVE FEATURES (Drawing, Undo/Redo) ---
     socket.on('draw', (data) => socket.to(data.roomId).emit('draw', data));
-    socket.on('clear-board', (data) => io.to(data.roomId).emit('clear-board', data));
-    socket.on('send-message', (data) => io.to(data.roomId).emit('receive-message', data));
     
-    // Ghost Cursors
-    socket.on('mouse-move', (data) => {
-        socket.to(data.roomId).emit('mouse-move', data);
+    socket.on('commit-stroke', ({ roomId, stroke }) => {
+        if (rooms[roomId]) {
+            rooms[roomId].history.push(stroke);
+            rooms[roomId].redoStack = [];
+        }
     });
+
+    socket.on('undo', ({ roomId }) => {
+        if (rooms[roomId] && rooms[roomId].history.length > 0) {
+            const action = rooms[roomId].history.pop();
+            rooms[roomId].redoStack.push(action);
+            io.to(roomId).emit('board-history', rooms[roomId].history);
+        }
+    });
+
+    socket.on('redo', ({ roomId }) => {
+        if (rooms[roomId] && rooms[roomId].redoStack.length > 0) {
+            const action = rooms[roomId].redoStack.pop();
+            rooms[roomId].history.push(action);
+            io.to(roomId).emit('board-history', rooms[roomId].history);
+        }
+    });
+
+    // --- ADVANCED FEATURES (Files, Screen Share, Signaling) ---
+    socket.on('upload-file', (data) => io.to(data.roomId).emit('receive-file', data));
+
+    socket.on('start-screen-share', ({ roomId, userId }) => socket.to(roomId).emit('user-started-sharing', { userId }));
+    socket.on('stop-screen-share', ({ roomId }) => socket.to(roomId).emit('user-stopped-sharing'));
+
+    socket.on('webrtc-offer', (data) => socket.to(data.target).emit('webrtc-offer', { sdp: data.sdp, callerId: socket.id }));
+    socket.on('webrtc-answer', (data) => socket.to(data.target).emit('webrtc-answer', { sdp: data.sdp, responderId: socket.id }));
+    socket.on('webrtc-ice-candidate', (data) => socket.to(data.target).emit('webrtc-ice-candidate', { candidate: data.candidate, senderId: socket.id }));
+
+    socket.on('mouse-move', (data) => socket.to(data.roomId).emit('mouse-move', data));
+    socket.on('send-message', (data) => io.to(data.roomId).emit('receive-message', data));
 
     socket.on('disconnect', () => {
         for (const roomId in rooms) {
