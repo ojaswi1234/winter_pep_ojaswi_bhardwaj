@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
-import { Copy, Check, Plus, LogOut, PanelLeftClose, PanelLeftOpen } from 'lucide-react'; // New Icons
+import { Copy, Check, Plus, LogOut, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import Whiteboard from '../components/Whiteboard';
 import Toolbar from '../components/Toolbar';
 import Chat from '../components/Chat';
@@ -18,7 +18,9 @@ const Room = () => {
     const [isHost, setIsHost] = useState(location.state?.isHost || false);
     
     // UI State
-    const [isSidebarOpen, setIsSidebarOpen] = useState(true); // Retractable Sidebar
+    const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [bgType, setBgType] = useState('grid'); // grid, lines, plain
+    const [downloadTrigger, setDownloadTrigger] = useState(0);
 
     // Logic States
     const [status, setStatus] = useState('initializing'); 
@@ -97,6 +99,11 @@ const Room = () => {
         setClearVersion(v=>v+1); 
     };
 
+    const handleDownload = () => {
+        setDownloadTrigger(v => v + 1);
+        toast.success("Downloading snapshot...");
+    };
+
     if (status === 'requesting') return <div className="full-screen" style={{alignItems:'center', justifyContent:'center', color:'white'}}><h2>Waiting for Host...</h2></div>;
     if (status === 'denied') return <div className="full-screen" style={{alignItems:'center', justifyContent:'center', color:'white'}}><h2>Access Denied</h2><button onClick={()=>navigate('/')} className="btn-secondary" style={{marginTop:20}}>Back Home</button></div>;
 
@@ -117,7 +124,7 @@ const Room = () => {
                 </div>
             )}
 
-            {/* Toggle Button for Room Sidebar */}
+            {/* Toggle Button */}
             <button 
                 onClick={() => setIsSidebarOpen(!isSidebarOpen)}
                 className="toggle-btn"
@@ -136,7 +143,14 @@ const Room = () => {
                     </div>
                 </div>
                 <div className="toolbar-container">
-                    <Toolbar tool={tool} setTool={setTool} color={color} setColor={setColor} lineWidth={lineWidth} setLineWidth={setLineWidth} onClear={handleClear}/>
+                    <Toolbar 
+                        tool={tool} setTool={setTool} 
+                        color={color} setColor={setColor} 
+                        lineWidth={lineWidth} setLineWidth={setLineWidth} 
+                        onClear={handleClear}
+                        onDownload={handleDownload}
+                        bgType={bgType} setBgType={setBgType}
+                    />
                     <div style={{marginTop:30}}>
                         <label style={{color:'#94A3B8', fontSize:'0.8rem', letterSpacing:1}}>ACTIVE USERS ({users.length})</label>
                         <ul style={{listStyle:'none', padding:0, marginTop:10}}>
@@ -162,7 +176,12 @@ const Room = () => {
                     {pages.map((p, i) => (
                         <div key={p} className="page-wrapper" style={{marginBottom:40, boxShadow:'0 4px 20px rgba(0,0,0,0.1)'}}>
                             <div style={{background:'white', padding:'8px 16px', borderBottom:'1px solid #eee', color:'#64748b', fontWeight:'bold'}}>Page {i+1}</div>
-                            <Whiteboard tool={tool} color={color} lineWidth={lineWidth} roomId={roomId} pageId={p} username={username} socket={socket} clearVersion={clearVersion} />
+                            <Whiteboard 
+                                tool={tool} color={color} lineWidth={lineWidth} 
+                                roomId={roomId} pageId={p} username={username} 
+                                socket={socket} clearVersion={clearVersion} 
+                                bgType={bgType} downloadTrigger={downloadTrigger}
+                            />
                         </div>
                     ))}
                 </div>
