@@ -19,7 +19,6 @@ const Room = () => {
     
     // UI State
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-    const [bgType, setBgType] = useState('grid'); // grid, lines, plain
     const [downloadTrigger, setDownloadTrigger] = useState(0);
 
     // Logic States
@@ -149,7 +148,6 @@ const Room = () => {
                         lineWidth={lineWidth} setLineWidth={setLineWidth} 
                         onClear={handleClear}
                         onDownload={handleDownload}
-                        bgType={bgType} setBgType={setBgType}
                     />
                     <div style={{marginTop:30}}>
                         <label style={{color:'#94A3B8', fontSize:'0.8rem', letterSpacing:1}}>ACTIVE USERS ({users.length})</label>
@@ -180,7 +178,7 @@ const Room = () => {
                                 tool={tool} color={color} lineWidth={lineWidth} 
                                 roomId={roomId} pageId={p} username={username} 
                                 socket={socket} clearVersion={clearVersion} 
-                                bgType={bgType} downloadTrigger={downloadTrigger}
+                                downloadTrigger={downloadTrigger}
                             />
                         </div>
                     ))}

@@ -521,3 +521,12 @@
 .icon-btn { background: #1E293B; border: 1px solid rgba(255,255,255,0.08); color: #94A3B8; padding: 10px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; transition: 0.2s; }
 .icon-btn:hover { background: rgba(255,255,255,0.05); }
 .icon-btn.active { background: #F59E0B; color: #0B1120; border-color: #F59E0B; }
+
+/* Whiteboard container styling: allows CSS background patterns to repeat properly */
+.whiteboard-container {
+  position: relative;
+  height: 800px;
+  width: 100%;
+  background-repeat: repeat;
+  background-position: 0 0;
+}
