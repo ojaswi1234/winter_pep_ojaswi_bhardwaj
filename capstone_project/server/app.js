@@ -16,20 +16,14 @@ connectDB();
 app.use('/api/auth', require('./routes/authRoutes'));
 
 const io = new Server(server, {
-    cors: {
-        origin: "*",
-        methods: ["GET", "POST"]
-    }
+    cors: { origin: "*", methods: ["GET", "POST"] },
+    maxHttpBufferSize: 1e8 // Increase buffer for file uploads (100MB)
 });
 
-// Store room state: { roomId: { hostId: string, users: [{ id, username }] } }
 const rooms = {}; 
 
 io.on('connection', (socket) => {
-    
-    // --- ROOM MANAGEMENT ---
-
-    // 1. Create Room (Host)
+    // --- ROOM LOGIC ---
     socket.on('create-room', ({ roomId, username }) => {
         rooms[roomId] = {
             hostId: socket.id,
@@ -37,29 +31,23 @@ io.on('connection', (socket) => {
         };
         socket.join(roomId);
         socket.emit('room-created', { success: true, isHost: true });
-        
-        // Send initial user list to host immediately
         io.to(roomId).emit('room-users', rooms[roomId].users);
-        console.log(`Room ${roomId} created by ${username}`);
     });
 
-    // 2. Request to Join (Guest)
     socket.on('request-join', ({ roomId, username }) => {
         const room = rooms[roomId];
         if (!room) {
             socket.emit('join-status', { status: 'error', message: "Room not found or host is offline." });
             return;
         }
-        // Notify Host
         io.to(room.hostId).emit('user-requesting', { socketId: socket.id, username });
     });
 
-    // 3. Host Responds
     socket.on('respond-join', ({ socketId, action, roomId }) => {
         if (action === 'accept') {
-            const socketToJoin = io.sockets.sockets.get(socketId);
-            if (socketToJoin) {
-                socketToJoin.join(roomId);
+            const participant = io.sockets.sockets.get(socketId);
+            if (participant) {
+                participant.join(roomId);
                 io.to(socketId).emit('join-status', { status: 'accepted', roomId });
             }
         } else {
@@ -67,48 +55,72 @@ io.on('connection', (socket) => {
         }
     });
 
-    // 4. Join Confirmed (Update Lists)
     socket.on('join-confirmed', ({ roomId, username }) => {
         if(rooms[roomId]) {
-             // Prevent duplicates
-             const isPresent = rooms[roomId].users.some(u => u.id === socket.id);
-             if (!isPresent) {
+             if (!rooms[roomId].users.find(u => u.id === socket.id)) {
                  rooms[roomId].users.push({ id: socket.id, username });
              }
-             // Broadcast updated list to EVERYONE
              io.to(roomId).emit('room-users', rooms[roomId].users);
              io.to(roomId).emit('user-joined', { username, id: socket.id });
         }
     });
 
-    // --- INTERACTIVE FEATURES ---
-
+    // --- INTERACTION BROADCASTS ---
     socket.on('draw', (data) => socket.to(data.roomId).emit('draw', data));
-    
     socket.on('clear-board', (data) => io.to(data.roomId).emit('clear-board', data));
-    
     socket.on('send-message', (data) => io.to(data.roomId).emit('receive-message', data));
+    socket.on('mouse-move', (data) => socket.to(data.roomId).emit('mouse-move', data));
 
-    // Interactive Mouse Cursors (Broadcast to others)
-    socket.on('mouse-move', (data) => {
-        socket.to(data.roomId).emit('mouse-move', data);
+    // --- NEW FEATURES SIGNALING ---
+
+    // 1. File Sharing
+    socket.on('upload-file', (data) => {
+        // Broadcast file to room
+        io.to(data.roomId).emit('receive-file', data);
     });
 
-    // --- DISCONNECT HANDLING ---
+    // 2. WebRTC Signaling (Screen Share)
+    // When a user starts sharing, they send 'start-screen-share'
+    socket.on('start-screen-share', ({ roomId, userId }) => {
+        socket.to(roomId).emit('user-started-sharing', { userId });
+    });
+
+    socket.on('stop-screen-share', ({ roomId }) => {
+        socket.to(roomId).emit('user-stopped-sharing');
+    });
+
+    // Standard WebRTC Signaling: Offer, Answer, ICE Candidates
+    socket.on('webrtc-offer', (data) => {
+        socket.to(data.target).emit('webrtc-offer', {
+            sdp: data.sdp,
+            callerId: socket.id
+        });
+    });
+
+    socket.on('webrtc-answer', (data) => {
+        socket.to(data.target).emit('webrtc-answer', {
+            sdp: data.sdp,
+            responderId: socket.id
+        });
+    });
+
+    socket.on('webrtc-ice-candidate', (data) => {
+        socket.to(data.target).emit('webrtc-ice-candidate', {
+            candidate: data.candidate,
+            senderId: socket.id
+        });
+    });
+
+    // --- DISCONNECT ---
     socket.on('disconnect', () => {
         for (const roomId in rooms) {
             const room = rooms[roomId];
             const userIndex = room.users.findIndex(u => u.id === socket.id);
-            
             if (userIndex !== -1) {
                 const user = room.users[userIndex];
                 room.users.splice(userIndex, 1);
-                
-                // Notify remaining users (include username for cursor cleanup)
-                io.to(roomId).emit('user-left', { id: user.id, username: user.username });
+                io.to(roomId).emit('user-left', user.id);
                 io.to(roomId).emit('room-users', room.users);
-                
-                // If Host leaves, close room
                 if (socket.id === room.hostId) {
                     delete rooms[roomId]; 
                     io.to(roomId).emit('room-closed');
