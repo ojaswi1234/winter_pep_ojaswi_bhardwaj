@@ -11,30 +11,11 @@ const Whiteboard = ({ tool, color, lineWidth, roomId, pageId, username, socket, 
     const currentStrokeRef = useRef({ points: [], color, width: lineWidth, tool });
 
     // --- Helper Functions ---
-    const drawGrid = (ctx, w, h) => {
-        ctx.save();
-        // 1. Fill base with white
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.fillStyle = '#ffffff'; 
-        ctx.fillRect(0, 0, w, h);
-
-        // 2. Draw Grid Pattern
-        ctx.fillStyle = '#e2e8f0';
-        for(let x = 0; x < w; x += 20) {
-            for(let y = 0; y < h; y += 20) {
-                ctx.fillRect(x, y, 1, 1);
-            }
-        }
-        ctx.restore();
-    };
-
     const redrawFromHistory = (history) => {
         const ctx = canvasRef.current.getContext('2d');
         const { width, height } = canvasRef.current;
         
-        // Clear and draw grid
-        ctx.clearRect(0, 0, width, height);
-        drawGrid(ctx, width, height);
+        ctx.clearRect(0, 0, width, height); // Just clear, CSS background handles the grid
         
         // Redraw all strokes from server history
         history.forEach(stroke => {
@@ -58,9 +39,19 @@ const Whiteboard = ({ tool, color, lineWidth, roomId, pageId, username, socket, 
     // --- Effects ---
     useEffect(() => {
         if (downloadTrigger > 0 && canvasRef.current) {
+            // Because the grid is CSS-based, the downloaded png background will be transparent. 
+            // If you want a white background inside the downloaded file, composite it temporarily:
+            const downloadCanvas = document.createElement('canvas');
+            downloadCanvas.width = canvasRef.current.width;
+            downloadCanvas.height = canvasRef.current.height;
+            const tempCtx = downloadCanvas.getContext('2d');
+            tempCtx.fillStyle = '#ffffff';
+            tempCtx.fillRect(0, 0, downloadCanvas.width, downloadCanvas.height);
+            tempCtx.drawImage(canvasRef.current, 0, 0);
+
             const link = document.createElement('a');
             link.download = `Whiteboard_Room_${roomId}_Page_${pageId}.png`;
-            link.href = canvasRef.current.toDataURL('image/png');
+            link.href = downloadCanvas.toDataURL('image/png');
             link.click();
         }
     }, [downloadTrigger, roomId, pageId]);
@@ -68,14 +59,13 @@ const Whiteboard = ({ tool, color, lineWidth, roomId, pageId, username, socket, 
     useEffect(() => {
         const canvas = canvasRef.current;
         const container = containerRef.current;
-        const ctx = canvas.getContext('2d', { willReadFrequently: true }); // Performance fix
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
         const resize = () => {
             if (container) {
                 const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
                 canvas.width = container.clientWidth;
                 canvas.height = 800;
-                drawGrid(ctx, canvas.width, canvas.height);
                 ctx.putImageData(img, 0, 0);
             }
         };
@@ -117,12 +107,11 @@ const Whiteboard = ({ tool, color, lineWidth, roomId, pageId, username, socket, 
         const handleClear = (d) => { 
             if(d.roomId === roomId && d.pageId === pageId) { 
                 ctx.clearRect(0,0,canvas.width,canvas.height); 
-                drawGrid(ctx,canvas.width,canvas.height); 
             }
         };
 
         socket.on('draw', handleDraw);
-        socket.on('board-history', redrawFromHistory); // For Undo/Redo logic
+        socket.on('board-history', redrawFromHistory); 
         socket.on('mouse-move', handleMouseMove);
         socket.on('user-left', handleUserLeft);
         socket.on('clear-board', handleClear);
@@ -142,7 +131,6 @@ const Whiteboard = ({ tool, color, lineWidth, roomId, pageId, username, socket, 
         if(clearVersion > 0) {
              const ctx = canvasRef.current.getContext('2d');
              ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
-             drawGrid(ctx, canvasRef.current.width, canvasRef.current.height);
         }
     }, [clearVersion]);
 
@@ -150,14 +138,12 @@ const Whiteboard = ({ tool, color, lineWidth, roomId, pageId, username, socket, 
     const handleMove = (e) => {
         const { offsetX: x, offsetY: y } = e.nativeEvent;
         
-        // Emit Mouse Move for Ghost Cursors
         socket.emit('mouse-move', { roomId, pageId, username, x, y, color });
         
         if (isDrawing) {
             const ctx = canvasRef.current.getContext('2d');
             const { prevX, prevY } = canvasRef.current;
             
-            // Draw Locally
             ctx.beginPath(); 
             ctx.strokeStyle = color; 
             ctx.lineWidth = tool === 'eraser' ? lineWidth * 2 : lineWidth;
@@ -169,10 +155,7 @@ const Whiteboard = ({ tool, color, lineWidth, roomId, pageId, username, socket, 
             ctx.stroke();
             ctx.closePath();
             
-            // Broadcast
             socket.emit('draw', { roomId, pageId, x, y, prevX, prevY, color, width: lineWidth, tool });
-            
-            // Save point for History (Undo/Redo)
             currentStrokeRef.current.points.push({ x, y });
             
             canvasRef.current.prevX = x; 
@@ -187,19 +170,12 @@ const Whiteboard = ({ tool, color, lineWidth, roomId, pageId, username, socket, 
         canvasRef.current.prevX = x; 
         canvasRef.current.prevY = y;
         
-        // Initialize stroke tracking for history
-        currentStrokeRef.current = { 
-            points: [{ x, y }], 
-            color, 
-            width: lineWidth, 
-            tool 
-        };
+        currentStrokeRef.current = { points: [{ x, y }], color, width: lineWidth, tool };
     };
 
     const stop = () => {
         if(isDrawing) {
             setIsDrawing(false); 
-            // Commit stroke to the server history stack for Undo/Redo
             socket.emit('commit-stroke', { roomId, stroke: currentStrokeRef.current }); 
         }
     };
@@ -212,7 +188,15 @@ const Whiteboard = ({ tool, color, lineWidth, roomId, pageId, username, socket, 
                 onMouseMove={handleMove} 
                 onMouseUp={stop} 
                 onMouseLeave={stop} 
-                style={{ display: 'block', cursor: tool === 'pencil' ? 'crosshair' : 'default', touchAction: 'none' }} 
+                style={{ 
+                    display: 'block', 
+                    cursor: tool === 'pencil' ? 'crosshair' : 'default', 
+                    touchAction: 'none',
+                    // Pure CSS Background grid so destination-out safely exposes the grid!
+                    background: '#ffffff',
+                    backgroundImage: 'linear-gradient(#e2e8f0 1px, transparent 1px), linear-gradient(#e2e8f0 1px, transparent 1px)',
+                    backgroundSize: '20px 20px'
+                }} 
             />
             
             {/* Render Ghost Cursors Over the Canvas */}

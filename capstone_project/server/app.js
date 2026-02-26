@@ -37,7 +37,7 @@ io.on('connection', (socket) => {
     socket.on('create-room', ({ roomId, username }) => {
         rooms[roomId] = {
             hostId: socket.id,
-            users: [{ id: socket.id, username }],
+            users: [{ id: socket.id, username, isHost: true }], // Added isHost
             history: [],
             redoStack: []
         };
@@ -67,12 +67,24 @@ io.on('connection', (socket) => {
     socket.on('join-confirmed', ({ roomId, username }) => {
         if(rooms[roomId]) {
              if (!rooms[roomId].users.some(u => u.id === socket.id)) {
-                 rooms[roomId].users.push({ id: socket.id, username });
+                 rooms[roomId].users.push({ id: socket.id, username, isHost: false }); // Added isHost
              }
              io.to(roomId).emit('room-users', rooms[roomId].users);
              io.to(roomId).emit('user-joined', { username, id: socket.id });
              socket.emit('board-history', rooms[roomId].history);
         }
+    });
+
+    // --- FEATURE PERMISSION MANAGEMENT ---
+    socket.on('request-feature-permission', ({ roomId, username, type }) => {
+        const room = rooms[roomId];
+        if (room) {
+            io.to(room.hostId).emit('feature-permission-request', { socketId: socket.id, username, type });
+        }
+    });
+
+    socket.on('respond-feature-permission', ({ targetId, action, type }) => {
+        io.to(targetId).emit('feature-permission-response', { action, type });
     });
 
     // --- INTERACTIVE FEATURES (Drawing, Undo/Redo) ---
