@@ -10,8 +10,9 @@ const Whiteboard = ({
     username, 
     socket, 
     clearVersion,
-    bgType = 'grid', // Default to grid
-    downloadTrigger = 0 // Default for download logic
+    // New Props for Features
+    bgType = 'grid', 
+    downloadTrigger = 0
 }) => {
     const canvasRef = useRef(null);
     const containerRef = useRef(null); // Ref for the wrapper div (for responsiveness)
@@ -20,16 +21,16 @@ const Whiteboard = ({
 
     // --- Helper Functions ---
 
-    // Modified to support different background types
+    // Modified to support Grid, Lines, or Plain backgrounds
     const drawBackground = (ctx, w, h, type) => {
         ctx.save();
-        // 1. Fill base with white (Crucial for downloaded images to not be transparent)
+        // 1. Fill base with white (Crucial so downloaded images aren't transparent)
         ctx.globalCompositeOperation = 'source-over';
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, w, h);
 
         // 2. Draw specific pattern
-        ctx.strokeStyle = '#e2e8f0';
+        ctx.strokeStyle = '#e2e8f0'; // Light grey for lines/dots
         ctx.lineWidth = 1;
 
         if (type === 'grid') {
@@ -53,18 +54,20 @@ const Whiteboard = ({
         ctx.restore();
     };
 
-    // Main drawing function
+    // Main drawing function used by both local mouse events and socket events
     const drawOnCanvas = (x, y, px, py, sColor, sWidth, toolType) => {
         const ctx = canvasRef.current.getContext('2d');
         ctx.beginPath();
         ctx.strokeStyle = sColor;
         ctx.lineWidth = sWidth;
-        ctx.lineCap = 'round'; // Smooths lines
-        ctx.lineJoin = 'round';
-        
+        // Eraser uses destination-out to remove pixels
         ctx.globalCompositeOperation = toolType === 'eraser' ? 'destination-out' : 'source-over';
+        // Eraser is slightly larger for better UX
         if (toolType === 'eraser') ctx.lineWidth = sWidth * 2;
         
+        ctx.lineCap = 'round'; // Smooths line edges
+        ctx.lineJoin = 'round';
+
         ctx.moveTo(px, py);
         ctx.lineTo(x, y);
         ctx.stroke();
@@ -73,7 +76,7 @@ const Whiteboard = ({
 
     // --- Effects ---
 
-    // 1. Handle Download Trigger (Export Snapshot)
+    // 1. Handle Download Trigger (New Feature)
     useEffect(() => {
         if (downloadTrigger > 0 && canvasRef.current) {
             const link = document.createElement('a');
@@ -83,12 +86,12 @@ const Whiteboard = ({
         }
     }, [downloadTrigger, roomId, pageId]);
 
-    // 2. Main Logic: Initialization, Resizing, Socket Listeners, and Background Change
+    // 2. Initialization, Resizing, Socket Listeners, and Background Handling
     useEffect(() => {
         const canvas = canvasRef.current;
         const container = containerRef.current;
         
-        // FIX: Add willReadFrequently: true to stop the console warning and improve perf
+        // PERFORMANCE FIX: Add willReadFrequently: true to stop browser warnings
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
 
         // Logic to Resize Canvas while preserving drawings
@@ -101,10 +104,10 @@ const Whiteboard = ({
                 canvas.width = container.clientWidth;
                 canvas.height = 800; // Fixed height per page
                 
-                // 3. Redraw Background based on current bgType prop
+                // 3. Redraw Background (Dynamic based on bgType)
                 drawBackground(ctx, canvas.width, canvas.height, bgType);
                 
-                // 4. Restore Drawing on top of new background
+                // 4. Restore Drawing
                 ctx.putImageData(img, 0, 0);
                 
                 // 5. Reset Context properties (context resets on resize)
@@ -161,7 +164,7 @@ const Whiteboard = ({
             socket.off('clear-board', handleClear);
             socket.off('mouse-move', handleMouseMove);
         };
-    }, [roomId, pageId, bgType]); // IMPORTANT: Dependency on bgType triggers background redraw
+    }, [roomId, pageId, bgType]); // IMPORTANT: Dependency on bgType to redraw background
 
     // 3. Update Context when Tool/Color changes
     useEffect(() => {
