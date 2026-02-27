@@ -104,7 +104,7 @@ const Home = () => {
              <div className="full-screen">
                 <div className="container">
                     <nav className="landing-nav">
-                        <div className="logo">Collab<span>Board</span>.</div>
+                        <div className="logo">Collab<span>Space</span>.</div>
                         <div style={{ display: 'flex', gap: '15px' }}>
                             <button onClick={() => navigate('/login')} className="btn-secondary">Sign In</button>
                             <button onClick={() => navigate('/register')} className="btn-primary">Get Started</button>
