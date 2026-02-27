@@ -52,7 +52,10 @@ const Room = () => {
                 videoElement.srcObject = remoteStream;
             }
             // Overcome modern browser autoplay blocks
-            videoElement.play().catch(err => console.error("Video autoplay prevented by browser:", err));
+            videoElement.play().catch(err => {
+                console.error("Video autoplay prevented by browser:", err);
+                toast.error("Screen share video autoplay blocked. Click play to view.");
+            });
         }
     }, [remoteStream]);
 
@@ -232,8 +235,19 @@ const Room = () => {
     const startScreenShare = async () => {
         try {
             let stream;
-            try { stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true }); } 
-            catch(e) { stream = await navigator.mediaDevices.getDisplayMedia({ video: true }); }
+            try {
+                stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+            } catch(e) {
+                console.error("getDisplayMedia audio error:", e);
+                toast.error("Screen share audio not available. Sharing video only.");
+                try {
+                    stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                } catch(e2) {
+                    console.error("getDisplayMedia video error:", e2);
+                    toast.error("Screen share failed. Video not available.");
+                    return;
+                }
+            }
 
             localStreamRef.current = stream;
             setIsSharing(true);
@@ -241,7 +255,10 @@ const Room = () => {
 
             stream.getVideoTracks()[0].onended = stopScreenShare;
             users.forEach(user => { if (user.id !== socket.id) createPeerConnection(user.id, stream); });
-        } catch (err) { console.error("Screen Share Error:", err); }
+        } catch (err) {
+            console.error("Screen Share Error:", err);
+            toast.error("Screen share failed. See console for details.");
+        }
     };
 
     const createPeerConnection = async (targetId, stream) => {
